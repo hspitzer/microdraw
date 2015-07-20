@@ -605,6 +605,10 @@ function toolSelection(event) {
                         interactSaveSVG();
                         backToPreviousTool(prevTool);
                         break;
+                case "load":
+                        interactLoadFromUser();
+                        backToPreviousTool(prevTool);
+                        break;
                 case "color-line":
                         togglePathColor();
                         backToPreviousTool(prevTool);
@@ -698,18 +702,40 @@ function interactSave() {
 		}
 	});
 }
-function interactLoad() {
+
+function interactLoadFromUser() {
+/* 
+ *  Ask for a username and load annotations of this username
+ */
+    
+    if (debug) console.log("> interactLoadFromUser promise");
+
+    var user = prompt("Please enter the username", "");
+    if (user != null) {
+        var origin = {};
+        origin.appName = myOrigin.appName;
+        origin.source= myOrigin.source;
+        origin.user = user;
+        interactLoad(origin);
+    }
+
+}
+
+
+function interactLoad(origin) {
 /*
 	Load SVG overlay from Interact DB
 */
 	if(debug) console.log("> interactLoad promise");
 	
+        var ori = typeof origin !== 'undefined' ? origin : myOrigin
+
 	var	def=$.Deferred();
 	var	key="regionPaths";
 	
 	$.get(dbroot,{
 		"action":"load_last",
-		"origin":JSON.stringify(myOrigin),
+		"origin":JSON.stringify(ori),
 		"key":key
 	}).success(function(data) {
 		var	i,obj,reg;
