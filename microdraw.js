@@ -711,7 +711,7 @@ function interactLoadFromUser() {
     
     if (debug) console.log("> interactLoadFromUser promise");
 
-    var user = prompt("Please enter the username", "");
+    var user = prompt("Please enter the username", "d.stibane");
     if (user != null) {
         var origin = {};
         origin.appName = myOrigin.appName;
