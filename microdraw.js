@@ -1005,6 +1005,7 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
 
+
                 // save real image size if we are looking at dzi file       
                 if (typeof params.tileSources[0]) {
                     $.get(params.tileSources[0], function(obj) {
