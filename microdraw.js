@@ -62,7 +62,6 @@ function newRegion(arg) {
 
 	// push the new region to the Regions array
 	Regions.push(reg);
-	
 	return reg;
 }
 function removeRegion(reg) {
@@ -956,7 +955,7 @@ function initMicrodraw() {
 	// Configure currently selected tool
 	selectedTool="zoom";
 	selectTool();
-	// load tile sources
+        // load tile sources
 	$.get(params.source,function(obj) {
 		params.tileSources=obj.tileSources;
                 viewer = OpenSeadragon({
@@ -966,7 +965,7 @@ function initMicrodraw() {
                         showReferenceStrip: (obj.tileSources.length>1),
 	                referenceStripSizeRatio: 0.2,
                         preserveViewport: true,
-                        //sequenceMode: true,
+                        sequenceMode: (obj.tileSources.length>1),
 			//sequenceControlAnchor:'TOP_LEFT',
                         //referenceStripPosition:'BOTTOM_RIGHT',
                         showNavigator: true,
@@ -977,7 +976,7 @@ function initMicrodraw() {
                         //nextButton: "next",
 			homeButton:"home"
 		});
-		viewer.scalebar({
+            	viewer.scalebar({
 			type: OpenSeadragon.ScalebarType.MICROSCOPE,
 			minWidth:'150px',
 			pixelsPerMeter:obj.pixelsPerMeter,
@@ -999,7 +998,7 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
-                
+
                 // save real image size          
                 $.get(params.tileSources[0], function(obj) {
                     var parser = new DOMParser();
