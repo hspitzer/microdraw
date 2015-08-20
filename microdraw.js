@@ -14,7 +14,8 @@ var magicV=10000;	// resolution of the annotation canvas
 var myOrigin={};	// Origin identification for DB storage
 var	params;			// URL parameters
 var	myIP;			// user's IP
-
+var predictionTiles = undefined; //points to tiledImage containing predictions if loaded
+var maskTiles = undefined;
 /*
 	Region handling functions
 */
@@ -609,12 +610,20 @@ function toolSelection(event) {
                         interactLoadFromUser();
                         backToPreviousTool(prevTool);
                         break;
+                case "toggle-pred":
+                        addOpaqueTiledImage('prediction');
+                        backToPreviousTool(prevTool);
+                        break;
+                case "toggle-mask":
+                        addOpaqueTiledImage('mask');
+                        backToPreviousTool(prevTool);
+                        break;
                 case "color-line":
                         togglePathColor();
                         backToPreviousTool(prevTool);
                         break;
                 case "color-region":
-                        toggleRegionColor()
+                        toggleRegionColor();
                         backToPreviousTool(prevTool);
                         break;
                 case "width":
@@ -802,7 +811,6 @@ function save() {
 }
 function load() {
 	if(debug) console.log("> load");
-	
 	var	i,obj,reg;
 	if(localStorage.Microdraw) {
 		console.log("Loading data from localStorage");
@@ -941,6 +949,64 @@ function makeSVGInline() {
 	
 	return def.promise();
 }
+
+
+function addOpaqueTiledImage(type) {
+        if (debug) console.log("> addOpaqueTiledImage promise");
+        var tiles;
+        var source;
+        switch (type) {
+            case "prediction":
+                if ((params.tileSources.length > 1) || (!params.predictionSource)) {
+                    alert("No " + type + " available")
+                }
+                else {
+                    if (predictionTiles == undefined) {
+                        // add tiled image 
+                        console.log('adding ' + type)
+                        viewer.world.addHandler('add-item', function(data) {
+                            if (debug) console.log("added Tiled Image to world");
+                            predictionTiles = data.item;
+                            viewer.world.removeAllHandlers('add-item');
+                       });
+                       viewer.addTiledImage({tileSource: params.predictionSource, opacity:0.5});
+                   }
+                   else {
+                       console.log('removing ' + type)
+                       viewer.world.removeItem(predictionTiles);
+                       predictionTiles = undefined;
+                   }  
+                }
+                break;
+            case "mask":
+                if ((params.tileSources.length > 1) || (!params.maskSource)) {
+                    alert("No " + type + " available")
+                }
+                else {
+                    if (maskTiles == undefined) {
+                        // add tiled image 
+                        console.log('adding ' + type)
+                        viewer.world.addHandler('add-item', function(data) {
+                            if (debug) console.log("added Tiled Image to world");
+                            maskTiles = data.item;
+                            viewer.world.removeAllHandlers('add-item');
+
+                       });
+                       viewer.addTiledImage({tileSource: params.maskSource, opacity:0.5});
+                   }
+                   else {
+                       console.log('removing ' + type)
+                       viewer.world.removeItem(maskTiles);
+                       maskTiles = undefined;
+                   }  
+                }
+                break;
+            default:
+                console.log("unknown type: " + type);
+        }
+           
+}
+
 function initMicrodraw() {
 	if(debug) console.log("> initMicrodraw promise");
 	
@@ -964,6 +1030,8 @@ function initMicrodraw() {
                     eval("obj.tileSources[0].getTileUrl = " + obj.tileSources[0].getTileUrl); 
                 }
 		params.tileSources=obj.tileSources;
+                params.predictionSource = obj.predictionSource;
+                params.maskSource = obj.maskSource;
                 viewer = OpenSeadragon({
 			id: "openseadragon1",
 			prefixUrl: "lib/openseadragon/images/",
@@ -998,7 +1066,7 @@ function initMicrodraw() {
 		viewer.addHandler("page", function (data) {
 			console.log(params.tileSources[data.page]);
 		});
-		viewer.addViewerInputHook({hooks: [
+                viewer.addViewerInputHook({hooks: [
 			{tracker: 'viewer', handler: 'clickHandler', hookHandler: clickHandler},
 			{tracker: 'viewer', handler: 'pressHandler', hookHandler: pressHandler},
 			{tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
