@@ -610,12 +610,8 @@ function toolSelection(event) {
                         interactLoadFromUser();
                         backToPreviousTool(prevTool);
                         break;
-                case "toggle-pred":
-                        addOpaqueTiledImage('prediction');
-                        backToPreviousTool(prevTool);
-                        break;
                 case "toggle-mask":
-                        addOpaqueTiledImage('mask');
+                        addOpaqueMaskTiles();
                         backToPreviousTool(prevTool);
                         break;
                 case "color-line":
@@ -951,60 +947,51 @@ function makeSVGInline() {
 }
 
 
-function addOpaqueTiledImage(type) {
-        if (debug) console.log("> addOpaqueTiledImage promise");
+function addOpaqueMaskTiles() {
+        if (debug) console.log("> addOpaqueMaskTiles promise");
         var tiles;
         var source;
-        switch (type) {
-            case "prediction":
-                if ((params.tileSources.length > 1) || (!params.predictionSource)) {
-                    alert("No " + type + " available")
-                }
-                else {
-                    if (predictionTiles == undefined) {
-                        // add tiled image 
-                        console.log('adding ' + type)
-                        viewer.world.addHandler('add-item', function(data) {
-                            if (debug) console.log("added Tiled Image to world");
-                            predictionTiles = data.item;
-                            viewer.world.removeAllHandlers('add-item');
-                       });
-                       viewer.addTiledImage({tileSource: params.predictionSource, opacity:0.5});
-                   }
-                   else {
-                       console.log('removing ' + type)
-                       viewer.world.removeItem(predictionTiles);
-                       predictionTiles = undefined;
-                   }  
-                }
-                break;
-            case "mask":
-                if ((params.tileSources.length > 1) || (!params.maskSource)) {
-                    alert("No " + type + " available")
-                }
-                else {
-                    if (maskTiles == undefined) {
-                        // add tiled image 
-                        console.log('adding ' + type)
-                        viewer.world.addHandler('add-item', function(data) {
-                            if (debug) console.log("added Tiled Image to world");
-                            maskTiles = data.item;
-                            viewer.world.removeAllHandlers('add-item');
-
-                       });
-                       viewer.addTiledImage({tileSource: params.maskSource, opacity:0.5});
-                   }
-                   else {
-                       console.log('removing ' + type)
-                       viewer.world.removeItem(maskTiles);
-                       maskTiles = undefined;
-                   }  
-                }
-                break;
-            default:
-                console.log("unknown type: " + type);
+        if ((params.tileSources.length > 1) || (!params.maskSource)) {
+            alert("No mask available")
         }
-           
+        else {
+            if (maskTiles == undefined) {
+                // add tiled image 
+                if (debug) console.log('adding mask');
+                viewer.world.addHandler('add-item', function(data) {
+                    if (debug) console.log("added Tiled Image to world");
+                    maskTiles = data.item;
+                    viewer.world.removeAllHandlers('add-item');
+
+               });
+               viewer.addTiledImage({tileSource: params.maskSource, opacity:0.5});
+           }
+           else {
+               if (debug) console.log('removing mask');
+               viewer.world.removeItem(maskTiles);
+               maskTiles = undefined;
+           }  
+        }
+}
+
+function addOpaquePredictionTiles(event) {
+        if (debug) console.log("> addOpaquePredictionTiles promise");
+        var name = $("#predictions").val();
+        if (predictionTiles != undefined) {
+            // remove old tiles 
+            viewer.world.removeItem(predictionTiles);
+            predictionTiles = undefined;
+        }
+        if (name != "none") {
+            // add new tiles
+            viewer.world.addHandler('add-item', function(data) {
+                if (debug) console.log("added Tiled Image to world");
+                predictionTiles = data.item;
+                viewer.world.removeAllHandlers('add-item');
+            });
+            viewer.addTiledImage({tileSource: name, opacity:0.5});
+        }
+
 }
 
 function initMicrodraw() {
@@ -1017,7 +1004,8 @@ function initMicrodraw() {
 	
 	// Enable click on toolbar buttons
 	$("img.button").click(toolSelection);
-	
+
+       	
 	// Configure currently selected tool
 	selectedTool="zoom";
 	selectTool();
@@ -1032,6 +1020,8 @@ function initMicrodraw() {
 		params.tileSources=obj.tileSources;
                 params.predictionSource = obj.predictionSource;
                 params.maskSource = obj.maskSource;
+                
+               
                 viewer = OpenSeadragon({
 			id: "openseadragon1",
 			prefixUrl: "lib/openseadragon/images/",
@@ -1072,8 +1062,6 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
-
-
                 // save real image size if we are looking at dzi file       
                 if (typeof params.tileSources[0]) {
                     $.get(params.tileSources[0], function(obj) {
@@ -1082,8 +1070,29 @@ function initMicrodraw() {
                     //console.log(xmlDoc);
                     imageSize = xmlDoc.getElementsByTagName("Size")[0].attributes;
                     //console.log(imageSize); 
+
                     });
                 }
+
+                // fill predictions select with values
+                var sel = document.getElementById('predictions');
+                if (typeof params.predictionSource === 'string') {
+                    var opt = document.createElement('option');
+                    opt.innerHTML = params.predictionSource;
+                    opt.value = params.predictionSource;
+                    sel.appendChild(opt);
+
+                }
+                else {
+                    for(var i = 0; i < params.predictionSource.length; i++) {
+                        var opt = document.createElement('option');
+                        opt.innerHTML = params.predictionSource[i];
+                        opt.value = params.predictionSource[i];
+                        sel.appendChild(opt);
+                    }
+                }
+                $("#predictions").on('change', addOpaquePredictionTiles);
+>>>>>>> Implemented selection of result overlays with drop down menue.
 
 		if(debug) console.log("< initMicrodraw resolve: success");
 		def.resolve();
@@ -1095,6 +1104,8 @@ function initMicrodraw() {
 	});
 
 	appendRegionTagsFromOntology(Ontology);
+
+       
 	
 	//makeSVGInline().then(selectTool());
 	
