@@ -1063,13 +1063,13 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
                 // save real image size if we are looking at dzi file       
-                if (typeof params.tileSources[0]) {
+                if (typeof params.tileSources[0] == 'string') {
                     $.get(params.tileSources[0], function(obj) {
                     var parser = new DOMParser();
                     xmlDoc = parser.parseFromString(obj,"text/xml");
                     //console.log(xmlDoc);
                     imageSize = xmlDoc.getElementsByTagName("Size")[0].attributes;
-                    //console.log(imageSize); 
+                    console.log(imageSize); 
 
                     });
                 }
@@ -1092,7 +1092,6 @@ function initMicrodraw() {
                     }
                 }
                 $("#predictions").on('change', addOpaquePredictionTiles);
->>>>>>> Implemented selection of result overlays with drop down menue.
 
 		if(debug) console.log("< initMicrodraw resolve: success");
 		def.resolve();
