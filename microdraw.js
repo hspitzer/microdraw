@@ -1,6 +1,9 @@
 var	debug=true;
 
 var dbroot="./php/interact.php";
+var ALLRegions={};
+var currentCanvas = undefined;
+var projectID = {}; 
 var Regions=[]; 	// main list of regions. Contains a paper.js path, a unique ID and a name;
 var region=null;	// currently selected region (one element of Regions[])
 var handle;			// currently selected control point or handle (if any)
@@ -10,7 +13,7 @@ var selectedTool;	// currently selected tool
 var viewer;			// open seadragon viewer
 var imageSize;          // real size of the opened image openseadragon (openSeadragon.Point)
 var navEnabled=true;// flag indicating whether the navigator is enabled (if it's not, the annotation tools are)
-var magicV=10000;	// resolution of the annotation canvas
+var magicV=10000;	// resolution of the annotation canvas - ATTENTION: is set on initialization to size of image
 var myOrigin={};	// Origin identification for DB storage
 var	params;			// URL parameters
 var	myIP;			// user's IP
@@ -180,6 +183,45 @@ function regionTag(name,uid) {
 				].join(" ");
 	return str;
 }
+
+
+function fillRegionList() {
+    if (debug) console.log('> fillRegionList');
+    console.log(Regions);
+    for (var i = 0; i < Regions.length; i++) {
+        var reg = Regions[i];
+        // append region tag to regionList
+        var el=$(regionTag(reg.name,reg.uid));
+        $("#regionList").append(el);
+
+	// handle single click on computers
+	el.click(singlePressOnRegion);
+	
+	// handle double click on computers
+	el.dblclick(doublePressOnRegion);
+
+        // when the region name span is unfocused, save the currently entered name as region name
+        el.find(".region-name").on("blur", unfocusRegion);
+
+	// handle single and double tap on touch devices
+	/*
+		RT: it seems that a click event is also fired on touch devices,
+		making this one redundant
+	*/
+	el.on("touchstart",handleRegionTap);
+
+    }
+
+}
+function emptyRegionList() {
+    if (debug) console.log('> emptyRegionList');
+    for (var i = 0; i < Regions.length; i++) {
+        var reg = Regions[i];
+        var	tag=$("#regionList > .region-tag#"+reg.uid);
+	$(tag).remove();
+    }
+}
+
 function appendRegionTagsFromOntology(o) {
 	if(debug) console.log("> appendRegionTagsFromOntology");
 	
@@ -337,7 +379,9 @@ function mouseDown(x,y) {
 	if(debug) console.log("> mouseDown");
 	
 	var prevRegion=null;
+        console.log(x + ' ' + y);
 	var point=paper.view.viewToProject(new paper.Point(x,y));
+        console.log(point);
 	handle=null;
 
 	switch(selectedTool) {
@@ -838,36 +882,89 @@ function resizeAnnotationOverlay() {
 	$("canvas.overlay").height(height);
 	paper.view.viewSize=[width,height];
 }
-function initAnnotationOverlay() {
+function initAnnotationOverlay(data) {
 	if(debug) console.log("> initAnnotationOverlay");
-	
-	// set up vectorial annotation overlay
-	$("body").append("<canvas class='overlay'></canvas>");
+        console.log(viewer.world.getItemAt(0).getContentSize());
+        
+	console.log(data);
 
-	//resizeAnnotationOverlay();
+        // save regions 
+        if (currentCanvas != undefined) {
+            ALLRegions[currentCanvas] = Regions;
+        }
+        
+        // set up regions for new canvas
+        emptyRegionList();
+        Regions = [];
+        if (ALLRegions[data.source] != undefined) {
+            Regions = ALLRegions[data.source];
+            fillRegionList();
+        }
+        currentCanvas = data.source;
+
+        // create canvas if needed and do general canvas set up
+        var newCanvas = false;
+        if (document.getElementById(currentCanvas) == null) {
+	    // set up vectorial annotation overlay
+	    $("body").append("<canvas class='overlay' id='" + currentCanvas + "'></canvas>");
+            newCanvas = true;
+        }
 
 	var width=$("body").width();
 	var height=$("body").height();
-
         $("canvas.overlay").attr('width',width);
 	$("canvas.overlay").attr('height',height);
+	var canvas=document.getElementById(currentCanvas);
 
-	var	canvas=$("canvas.overlay")[0];
-	canvas.className="overlay";
+        // turn current project invisible
+        if (paper.project != null)
+            paper.project.activeLayer.visible = false;
+        if (projectID[currentCanvas] == undefined) {
+            // for this canvas no project exists: create it!
+            paper.setup(canvas);
+            projectID[currentCanvas] = paper.project.index;
+            if (debug) console.log('Set up new project with ID ' + projectID[currentCanvas]);
+        } else {
+            paper.projects[projectID[currentCanvas]].activate();
+        }
+        // turn new project visible
+        paper.project.activeLayer.visible = true;
 
-        Regions = []
+        // resize view to correct size
+        paper.view.viewSize=[width, height];
+        //console.log(paper.view.viewSize);
+        //console.log(width + ' ' +  height);
 
-	paper.setup(canvas);
+       // if (paper.View._viewsById[currentCanvas] == null) {
+       //     var ret = paper.setup(canvas);
+       //     console.log('return value!');
+       //     console.log(ret);
+       // }
+       // else {
+       //     var v = paper.View._viewsById[currentCanvas];
+       //     console.log(v);
+       //     v._project.activate(); 
+       // }
+
 	paper.settings.handleSize=10;
 	
-	interactLoad().then(function(){
+        // change myOrigin 
+        myOrigin.source = myOrigin.source.split('@')[0] + '@' + currentCanvas;
+
+	if (newCanvas) {
+            interactLoad().then(function(){
+                console.log(Regions);
 		$("#regionList").height($(window).height()-$("#regionList").offset().top);
-	});
+	    });
+        }
+
+        
 	
 	viewer.addHandler('animation', function(event){
 		transform()
 	});
 	transform();
+
 }
 
 function transform() {
@@ -876,12 +973,13 @@ function transform() {
 	var z=viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true));
 	var sw=viewer.source.width;
 	var bounds=viewer.viewport.getBounds(true);
-    var	x=magicV*bounds.x;
-    var	y=magicV*bounds.y;
-    var	w=magicV*bounds.width;
-    var	h=magicV*bounds.height;
-    paper.view.setCenter(x+w/2,y+h/2);
-    paper.view.zoom=(sw*z)/magicV;
+        console.log(bounds);
+        var x=magicV*bounds.x;
+        var y=magicV*bounds.y;
+        var w=magicV*bounds.width;
+        var h=magicV*bounds.height;
+        paper.view.setCenter(x+w/2,y+h/2);
+        paper.view.zoom=(sw*z)/magicV;
 }
 function deparam() {
 	if(debug) console.log("> deparam");
@@ -1011,16 +1109,16 @@ function initMicrodraw() {
 	selectTool();
         // load tile sources
 	$.get(params.source,function(obj) {
-                if (typeof obj.tileSources[0] != 'string') {
+                if (obj.tileSources.getTileUrl != undefined || obj.tileSources[0].getTileUrl != undefined) {
                     // tile sources are hdf5 file, so need to create function for tile sources 
-                    imageSize = {'Height': {'nodeValue': obj.tileSources[0].height}, 'Width': {'nodeValue': obj.tileSources[0].width}};
+                    //imageSize = {'Height': {'nodeValue': obj.tileSources[0].height}, 'Width': {'nodeValue': obj.tileSources[0].width}};
                     // TODO only works for tile sources 0!!
+                    eval("obj.tileSources[0] = " + obj.tileSources);
                     eval("obj.tileSources[0].getTileUrl = " + obj.tileSources[0].getTileUrl); 
                 }
 		params.tileSources=obj.tileSources;
                 params.predictionSource = obj.predictionSource;
                 params.maskSource = obj.maskSource;
-                
                
                 viewer = OpenSeadragon({
 			id: "openseadragon1",
@@ -1029,7 +1127,7 @@ function initMicrodraw() {
                         showReferenceStrip: (obj.tileSources.length>1),
 	                referenceStripSizeRatio: 0.2,
                         preserveViewport: true,
-                        sequenceMode: (obj.tileSources.length>1),
+                        sequenceMode: (obj.tileSources.length>1 && obj.tileSources[0].opacity == undefined),
 			//sequenceControlAnchor:'TOP_LEFT',
                         //referenceStripPosition:'BOTTOM_RIGHT',
                         showNavigator: true,
@@ -1062,33 +1160,39 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
-                // save real image size if we are looking at dzi file       
-                if (typeof params.tileSources[0] == 'string') {
-                    $.get(params.tileSources[0], function(obj) {
-                    var parser = new DOMParser();
-                    xmlDoc = parser.parseFromString(obj,"text/xml");
-                    //console.log(xmlDoc);
-                    imageSize = xmlDoc.getElementsByTagName("Size")[0].attributes;
-                    console.log(imageSize); 
 
+                world = new OpenSeadragon.World({'viewer': viewer});
+
+                // save real image size if we are looking at dzi file       
+                if (obj.tileSources.getTileUrl == undefined && obj.tileSources[0].getTileUrl == undefined) {
+                    var source = params.tileSources[0];
+                    if (source.tileSource != undefined)
+                        source = source.tileSource;
+                    $.get(source, function(obj) {
+                        var parser = new DOMParser();
+                        xmlDoc = parser.parseFromString(obj,"text/xml");
+                        imageSize = xmlDoc.getElementsByTagName("Size")[0].attributes;
+                        //console.log(imageSize); 
                     });
                 }
 
                 // fill predictions select with values
-                var sel = document.getElementById('predictions');
-                if (typeof params.predictionSource === 'string') {
-                    var opt = document.createElement('option');
-                    opt.innerHTML = params.predictionSource;
-                    opt.value = params.predictionSource;
-                    sel.appendChild(opt);
-
-                }
-                else {
-                    for(var i = 0; i < params.predictionSource.length; i++) {
+                if (params.predictionSource != undefined) {
+                    var sel = document.getElementById('predictions');
+                    if (typeof params.predictionSource === 'string') {
                         var opt = document.createElement('option');
-                        opt.innerHTML = params.predictionSource[i];
-                        opt.value = params.predictionSource[i];
+                        opt.innerHTML = params.predictionSource;
+                        opt.value = params.predictionSource;
                         sel.appendChild(opt);
+
+                    }
+                    else {
+                        for(var i = 0; i < params.predictionSource.length; i++) {
+                            var opt = document.createElement('option');
+                            opt.innerHTML = params.predictionSource[i];
+                            opt.value = params.predictionSource[i];
+                            sel.appendChild(opt);
+                        }
                     }
                 }
                 $("#predictions").on('change', addOpaquePredictionTiles);
