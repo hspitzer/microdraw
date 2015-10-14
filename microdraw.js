@@ -1,9 +1,10 @@
 var	debug=true;
 
 var dbroot="./php/interact.php";
-var ALLRegions={};
-var currentCanvas = undefined;
-var projectID = {}; 
+var imageInfo = {}; // contains information about the images defined in the json (indiced by name). Filled on initialization. 
+                    // Also holds the regions that are defined on each overlay and the indices of the overlays 
+var currentImage = undefined;   // name of the current image
+var prevImage = undefined;  // name of the last image
 var Regions=[]; 	// main list of regions. Contains a paper.js path, a unique ID and a name;
 var region=null;	// currently selected region (one element of Regions[])
 var handle;			// currently selected control point or handle (if any)
@@ -11,7 +12,6 @@ var newRegionFlag;
 var drawingPolygonFlag;
 var selectedTool;	// currently selected tool
 var viewer;			// open seadragon viewer
-var imageSize;          // real size of the opened image openseadragon (openSeadragon.Point)
 var navEnabled=true;// flag indicating whether the navigator is enabled (if it's not, the annotation tools are)
 var magicV=10000;	// resolution of the annotation canvas - ATTENTION: is set on initialization to size of image
 var myOrigin={};	// Origin identification for DB storage
@@ -19,6 +19,7 @@ var	params;			// URL parameters
 var	myIP;			// user's IP
 var predictionTiles = undefined; //points to tiledImage containing predictions if loaded
 var maskTiles = undefined;
+var currentPredictionSourceIndex = undefined;
 /*
 	Region handling functions
 */
@@ -187,7 +188,6 @@ function regionTag(name,uid) {
 
 function fillRegionList() {
     if (debug) console.log('> fillRegionList');
-    console.log(Regions);
     for (var i = 0; i < Regions.length; i++) {
         var reg = Regions[i];
         // append region tag to regionList
@@ -395,7 +395,7 @@ function mouseDown(x,y) {
 					tolerance:10,
 					stroke: true,
 					segments:true,
-					fill: false,
+					fill: true,
 					handles:true
 				});
 			newRegionFlag=false;
@@ -675,6 +675,14 @@ function toolSelection(event) {
 		case "home":
 			backToPreviousTool(prevTool);
 			break;
+                case "prev":
+                        loadPreviousImage();
+                        backToPreviousTool(prevTool);
+                        break;
+                case "next":
+                        loadNextImage();
+                        backToPreviousTool(prevTool);
+                        break;
 	}
 }
 function selectTool() {
@@ -696,15 +704,14 @@ function interactSaveSVG() {
         //paper.view.draw();
         var svg = paper.project.exportSVG({asString: false});
         //scale of the paper canvas coordinates to the real image coordinates
-        var scale = parseFloat(imageSize.Width.nodeValue) / magicV;
-        
-        svg.setAttribute("width", imageSize.Width.nodeValue);
-        svg.setAttribute("height", imageSize.Height.nodeValue);
-        svg.firstChild.setAttribute("transform", "translate(0,0) scale(" + scale + "," + scale + ")");
+        //var scale = parseFloat(imageSize.Width.nodeValue) / magicV;
+        svg.setAttribute("width", viewer.world.getItemAt(0).getContentSize().x);
+        svg.setAttribute("height", viewer.world.getItemAt(0).getContentSize().y);
+        svg.firstChild.setAttribute("transform", "translate(0,0) scale(1,1)");
 
         var svg_string = (new XMLSerializer).serializeToString(svg);
         var blob = new Blob([svg_string], {type: "image/svg+xml;charset=utf8"});
-        saveAs(blob, params.source.split('.')[0] + '-annotated.svg');
+        saveAs(blob, params.source.split('.')[0] + '_' + currentImage + '_annotated.svg');
 
 }
 
@@ -882,31 +889,77 @@ function resizeAnnotationOverlay() {
 	$("canvas.overlay").height(height);
 	paper.view.viewSize=[width,height];
 }
+
+function loadImageEvent() {
+    if (debug) console.log("> loadImageEvent");
+    name = $("#slice-name").val();
+    if (name in imageInfo) {
+        loadImage(name);
+    }
+    else {
+        // reset text in input field
+        $("#slice-name").val(currentImage);
+
+    }
+}
+
+function loadImage(name) {
+    if (debug) console.log("> loadImage(" + name + ")");
+    // save previous image for some (later) cleanup
+    prevImage = currentImage;
+    
+    // remove prediction and mask tiles
+    if (predictionTiles != undefined) {
+        viewer.world.removeItem(predictionTiles);
+        predictionTiles = undefined;
+    }
+    if (maskTiles != undefined) {
+        viewer.world.removeItem(maskTiles);
+        maskTiles = undefined;
+    }
+
+    // set current image to new image
+    currentImage = name;
+    viewer.open({"tileSource": imageInfo[currentImage]["source"]});
+
+}
+
+function loadNextImage() {
+    if (debug) console.log("> loadNextImage");
+    var index = imageOrder.indexOf(currentImage);
+    var nextIndex = ((index +1 < imageOrder.length)? index+1 : 0);
+
+    loadImage(imageOrder[nextIndex]);
+
+}
+
+function loadPreviousImage() {
+    console.log("> loadPrevImage");
+    var index = imageOrder.indexOf(currentImage);
+    var nextIndex = ((index - 1 >= 0)? index-1 : imageOrder.length -1 );
+    
+    loadImage(imageOrder[nextIndex]);
+}
+
+
 function initAnnotationOverlay(data) {
 	if(debug) console.log("> initAnnotationOverlay");
-        console.log(viewer.world.getItemAt(0).getContentSize());
-        
-	console.log(data);
-
+        console.log('new overlay size' + viewer.world.getItemAt(0).getContentSize());
         // save regions 
-        if (currentCanvas != undefined) {
-            ALLRegions[currentCanvas] = Regions;
+        if (prevImage != undefined) {
+            imageInfo[prevImage]["Regions"] = Regions;
         }
-        
+
         // set up regions for new canvas
         emptyRegionList();
-        Regions = [];
-        if (ALLRegions[data.source] != undefined) {
-            Regions = ALLRegions[data.source];
-            fillRegionList();
-        }
-        currentCanvas = data.source;
+        Regions = imageInfo[currentImage]["Regions"];      
+        fillRegionList();
 
         // create canvas if needed and do general canvas set up
         var newCanvas = false;
-        if (document.getElementById(currentCanvas) == null) {
+        if (document.getElementById(currentImage) == null) {
 	    // set up vectorial annotation overlay
-	    $("body").append("<canvas class='overlay' id='" + currentCanvas + "'></canvas>");
+	    $("body").append("<canvas class='overlay' id='" + currentImage + "'></canvas>");
             newCanvas = true;
         }
 
@@ -914,52 +967,38 @@ function initAnnotationOverlay(data) {
 	var height=$("body").height();
         $("canvas.overlay").attr('width',width);
 	$("canvas.overlay").attr('height',height);
-	var canvas=document.getElementById(currentCanvas);
+	var canvas=document.getElementById(currentImage);
 
         // turn current project invisible
         if (paper.project != null)
             paper.project.activeLayer.visible = false;
-        if (projectID[currentCanvas] == undefined) {
+        if (imageInfo[currentImage]["projectID"] == undefined) {
             // for this canvas no project exists: create it!
             paper.setup(canvas);
-            projectID[currentCanvas] = paper.project.index;
-            if (debug) console.log('Set up new project with ID ' + projectID[currentCanvas]);
+            imageInfo[currentImage]["projectID"] = paper.project.index;
+            if (debug) console.log('Set up new project with ID ' + imageInfo[currentImage]["projectID"]);
         } else {
-            paper.projects[projectID[currentCanvas]].activate();
+            paper.projects[imageInfo[currentImage]["projectID"]].activate();
         }
         // turn new project visible
         paper.project.activeLayer.visible = true;
 
         // resize view to correct size
         paper.view.viewSize=[width, height];
-        //console.log(paper.view.viewSize);
-        //console.log(width + ' ' +  height);
-
-       // if (paper.View._viewsById[currentCanvas] == null) {
-       //     var ret = paper.setup(canvas);
-       //     console.log('return value!');
-       //     console.log(ret);
-       // }
-       // else {
-       //     var v = paper.View._viewsById[currentCanvas];
-       //     console.log(v);
-       //     v._project.activate(); 
-       // }
-
 	paper.settings.handleSize=10;
 	
         // change myOrigin 
-        myOrigin.source = myOrigin.source.split('@')[0] + '@' + currentCanvas;
+        myOrigin.source = myOrigin.source.split('@')[0] + '@' + currentImage;
 
 	if (newCanvas) {
             interactLoad().then(function(){
-                console.log(Regions);
 		$("#regionList").height($(window).height()-$("#regionList").offset().top);
 	    });
         }
 
         
-	
+        // set size of the current overlay to match the size of the current image (assuming that the first image in the world is the dzi image)
+        magicV = viewer.world.getItemAt(0).getContentSize().x;
 	viewer.addHandler('animation', function(event){
 		transform()
 	});
@@ -973,7 +1012,6 @@ function transform() {
 	var z=viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true));
 	var sw=viewer.source.width;
 	var bounds=viewer.viewport.getBounds(true);
-        console.log(bounds);
         var x=magicV*bounds.x;
         var y=magicV*bounds.y;
         var w=magicV*bounds.width;
@@ -1044,25 +1082,34 @@ function makeSVGInline() {
 	return def.promise();
 }
 
+function updateSliceName() {
+    $("#slice-name").val(currentImage);
+}
+/*
+ * Mask and prediction overlays
+ */
 
 function addOpaqueMaskTiles() {
         if (debug) console.log("> addOpaqueMaskTiles promise");
         var tiles;
         var source;
-        if ((params.tileSources.length > 1) || (!params.maskSource)) {
+        if (imageInfo[currentImage]["maskSource"] == undefined) {
             alert("No mask available")
         }
         else {
             if (maskTiles == undefined) {
                 // add tiled image 
                 if (debug) console.log('adding mask');
-                viewer.world.addHandler('add-item', function(data) {
+                
+                var func = function(data) {
                     if (debug) console.log("added Tiled Image to world");
                     maskTiles = data.item;
-                    viewer.world.removeAllHandlers('add-item');
+                    console.log(viewer);
+                    viewer.world.removeHandler('add-item', func);
 
-               });
-               viewer.addTiledImage({tileSource: params.maskSource, opacity:0.5});
+                };
+                viewer.world.addHandler('add-item', func);             
+                viewer.addTiledImage({tileSource: imageInfo[currentImage]["maskSource"], opacity:0.5});
            }
            else {
                if (debug) console.log('removing mask');
@@ -1070,6 +1117,22 @@ function addOpaqueMaskTiles() {
                maskTiles = undefined;
            }  
         }
+}
+
+function fillPredictionSelect() {
+    if (debug) console.log('> fillPredictionSelect');
+    // delete all entries from predictions select
+    $("#predictions").empty();
+
+    // fill predictions select with values
+    var sel = $("#predictions"); //document.getElementById('predictions');
+    sel.append("<option value='none'>No Predictions</option>");
+    for (var i = 0; i < imageInfo[currentImage]["predictionSources"].length; i++) {
+        var source = imageInfo[currentImage]["predictionSources"][i];
+        var opt = "<option id='" + i + "' value='" + source + "'>" + source + "</option>";
+        sel.append(opt);
+    }
+
 }
 
 function addOpaquePredictionTiles(event) {
@@ -1082,11 +1145,12 @@ function addOpaquePredictionTiles(event) {
         }
         if (name != "none") {
             // add new tiles
-            viewer.world.addHandler('add-item', function(data) {
+            var func = function(data) {
                 if (debug) console.log("added Tiled Image to world");
                 predictionTiles = data.item;
-                viewer.world.removeAllHandlers('add-item');
-            });
+                viewer.world.removeHandler('add-item', func);
+            };
+            viewer.world.addHandler('add-item', func);
             viewer.addTiledImage({tileSource: name, opacity:0.5});
         }
 
@@ -1109,13 +1173,33 @@ function initMicrodraw() {
 	selectTool();
         // load tile sources
 	$.get(params.source,function(obj) {
-                if (obj.tileSources.getTileUrl != undefined || obj.tileSources[0].getTileUrl != undefined) {
-                    // tile sources are hdf5 file, so need to create function for tile sources 
-                    //imageSize = {'Height': {'nodeValue': obj.tileSources[0].height}, 'Width': {'nodeValue': obj.tileSources[0].width}};
-                    // TODO only works for tile sources 0!!
-                    eval("obj.tileSources[0] = " + obj.tileSources);
-                    eval("obj.tileSources[0].getTileUrl = " + obj.tileSources[0].getTileUrl); 
+            // update image info with relevant information!    
+            // create function on any entry with getTileUrl
+                imageOrder = []
+                for (var i = 0; i < obj.tileSources.length; i++) {
+                    if (obj.tileSources[i].getTileUrl != undefined) {
+                        eval("obj.tileSources[" + i + "].getTileUrl = " + obj.tileSources[i].getTileUrl);
+                    }
+                    imageOrder.push(obj.names[i]);
+                    imageInfo[obj.names[i]] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined, "predictionSources":[], "maskSource":undefined};
                 }
+                for (var key in obj.maskSources) {
+                    if (obj.maskSources[key].getTileUrl != undefined) {
+                        eval("obj.maskSources[" + key + "].getTileUrl = " + obj.maskSources[key].getTileUrl);
+                    }
+                    imageInfo[key]["maskSource"] = obj.maskSources[key];
+                }
+                for (var key in obj.predictionSources) {
+                    for (var i = 0; i < obj.predictionSources[key].length; i++) {
+                        if (obj.predictionSources[key][i].getTileUrl != undefined) {
+                            eval("obj.predictionSources[" + key + "][" + i + "].getTileUrl = " + obj.predictionSources[key][i].getTileUrl);
+                        }
+                        imageInfo[key]["predictionSources"].push(obj.predictionSources[key][i]);
+                    }
+                }
+                currentImage = obj.names[0];
+                console.log(imageInfo);
+                console.log(imageOrder);
 		params.tileSources=obj.tileSources;
                 params.predictionSource = obj.predictionSource;
                 params.maskSource = obj.maskSource;
@@ -1123,11 +1207,12 @@ function initMicrodraw() {
                 viewer = OpenSeadragon({
 			id: "openseadragon1",
 			prefixUrl: "lib/openseadragon/images/",
-			tileSources: obj.tileSources,
-                        showReferenceStrip: (obj.tileSources.length>1),
+			tileSources: [], // obj.tileSources,
+                        //showReferenceStrip: (obj.tileSources.length>1),
 	                referenceStripSizeRatio: 0.2,
                         preserveViewport: true,
-                        sequenceMode: (obj.tileSources.length>1 && obj.tileSources[0].opacity == undefined),
+                        sequenceMode: false,
+                        //sequenceMode: (obj.tileSources.length>1 && obj.tileSources[0].opacity == undefined),
 			//sequenceControlAnchor:'TOP_LEFT',
                         //referenceStripPosition:'BOTTOM_RIGHT',
                         showNavigator: true,
@@ -1138,6 +1223,14 @@ function initMicrodraw() {
                         //nextButton: "next",
 			homeButton:"home"
 		});
+                //viewer.world.addHandler('add-item', function(data) {
+                //    if (debug) console.log("added Tiled Image to world");
+                //    console.log(data);
+                //    imageInfo[currentImage]["tiledImageItem"] = data.item;
+                    //predictionTiles = data.item;
+                //    viewer.world.removeAllHandlers('add-item');
+                //});
+                viewer.open({"tileSource": imageInfo[currentImage]["source"]});
             	viewer.scalebar({
 			type: OpenSeadragon.ScalebarType.MICROSCOPE,
 			minWidth:'150px',
@@ -1151,9 +1244,11 @@ function initMicrodraw() {
 			yOffset:5
 		});
 		viewer.addHandler('open',initAnnotationOverlay);
-		viewer.addHandler("page", function (data) {
-			console.log(params.tileSources[data.page]);
-		});
+                viewer.addHandler('open',fillPredictionSelect);
+                viewer.addHandler('open',updateSliceName);
+		//viewer.addHandler("page", function (data) {
+		//	console.log(params.tileSources[data.page]);
+		//});
                 viewer.addViewerInputHook({hooks: [
 			{tracker: 'viewer', handler: 'clickHandler', hookHandler: clickHandler},
 			{tracker: 'viewer', handler: 'pressHandler', hookHandler: pressHandler},
@@ -1161,41 +1256,12 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
 
-                world = new OpenSeadragon.World({'viewer': viewer});
-
-                // save real image size if we are looking at dzi file       
-                if (obj.tileSources.getTileUrl == undefined && obj.tileSources[0].getTileUrl == undefined) {
-                    var source = params.tileSources[0];
-                    if (source.tileSource != undefined)
-                        source = source.tileSource;
-                    $.get(source, function(obj) {
-                        var parser = new DOMParser();
-                        xmlDoc = parser.parseFromString(obj,"text/xml");
-                        imageSize = xmlDoc.getElementsByTagName("Size")[0].attributes;
-                        //console.log(imageSize); 
-                    });
-                }
-
-                // fill predictions select with values
-                if (params.predictionSource != undefined) {
-                    var sel = document.getElementById('predictions');
-                    if (typeof params.predictionSource === 'string') {
-                        var opt = document.createElement('option');
-                        opt.innerHTML = params.predictionSource;
-                        opt.value = params.predictionSource;
-                        sel.appendChild(opt);
-
-                    }
-                    else {
-                        for(var i = 0; i < params.predictionSource.length; i++) {
-                            var opt = document.createElement('option');
-                            opt.innerHTML = params.predictionSource[i];
-                            opt.value = params.predictionSource[i];
-                            sel.appendChild(opt);
-                        }
-                    }
-                }
+                // add event that triggers the addition of predictions tiles when the dropdown is changed
                 $("#predictions").on('change', addOpaquePredictionTiles);
+
+                // add event for chaning the slice name in the input field
+                $("#slice-name").on('blur', loadImageEvent);
+
 
 		if(debug) console.log("< initMicrodraw resolve: success");
 		def.resolve();
@@ -1206,6 +1272,9 @@ function initMicrodraw() {
 		resizeAnnotationOverlay();
 	});
 
+        //window.onbeforeunload = function(e) {
+        //    return 'Do you really want to close this window?';
+        //};
 	appendRegionTagsFromOntology(Ontology);
 
        
