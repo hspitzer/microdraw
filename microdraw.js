@@ -999,9 +999,10 @@ function initAnnotationOverlay(data) {
         
         // set size of the current overlay to match the size of the current image (assuming that the first image in the world is the dzi image)
         magicV = viewer.world.getItemAt(0).getContentSize().x;
-	viewer.addHandler('animation', function(event){
-		transform()
-	});
+        // moved adding handler to general initMicrodraw, because here we add one handler per page change
+        //viewer.addHandler('animation', function(event){
+    	//	transform()
+	//});
 	transform();
 
 }
@@ -1246,6 +1247,8 @@ function initMicrodraw() {
 		viewer.addHandler('open',initAnnotationOverlay);
                 viewer.addHandler('open',fillPredictionSelect);
                 viewer.addHandler('open',updateSliceName);
+                viewer.addHandler('animation', function(event){transform()});
+
 		//viewer.addHandler("page", function (data) {
 		//	console.log(params.tileSources[data.page]);
 		//});
