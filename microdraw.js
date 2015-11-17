@@ -920,6 +920,7 @@ function loadImage(name) {
 
     // set current image to new image
     currentImage = name;
+
     viewer.open({"tileSource": imageInfo[currentImage]["source"]});
 
 }
@@ -929,6 +930,9 @@ function loadNextImage() {
     var index = imageOrder.indexOf(currentImage);
     var nextIndex = ((index +1 < imageOrder.length)? index+1 : 0);
 
+    // update image slider
+    update_slider_value(nextIndex);
+
     loadImage(imageOrder[nextIndex]);
 
 }
@@ -936,9 +940,12 @@ function loadNextImage() {
 function loadPreviousImage() {
     console.log("> loadPrevImage");
     var index = imageOrder.indexOf(currentImage);
-    var nextIndex = ((index - 1 >= 0)? index-1 : imageOrder.length -1 );
-    
-    loadImage(imageOrder[nextIndex]);
+    var previousIndex = ((index - 1 >= 0)? index-1 : imageOrder.length -1 );
+
+    // update image slider
+    update_slider_value(previousIndex);
+
+    loadImage(imageOrder[previousIndex]);
 }
 
 
@@ -1157,6 +1164,93 @@ function addOpaquePredictionTiles(event) {
 
 }
 
+function initSlider(min_val, max_val, step, default_value) {
+/*
+    Initializes a slider to easily change between slices
+*/
+    if (debug) console.log("> initSlider promise");
+	var slider = $("#slider");
+	if (slider.length > 0) { // only if slider could be found
+	    slider.attr("min", min_val);
+	    slider.attr("max", max_val-1);
+	    slider.attr("step", step);
+	    slider.val(default_value);
+
+	    slider.on("change", function() {
+	        slider_onchange(this.value);
+	    });
+
+	    slider.on("input", function() {
+	        slider_onchange(this.value);
+	    });
+	}
+}
+
+function slider_onchange(newImageIndex) {
+/*
+    Called when the slider value is changed to load a new slice
+*/
+    if (debug) console.log("> slider_onchange promise");
+	var imageNumber = imageOrder[newImageIndex];
+    loadImage(imageNumber);
+}
+
+function update_slider_value(newIndex) {
+/*
+    Used to update the slider value if the slice was changed by another control
+*/
+    if (debug) console.log("> update_slider_value promise");
+    var slider = $("#slider");
+	if (slider.length > 0) { // only if slider could be found
+	    slider.val(newIndex);
+	}
+}
+
+function mousewheel_eventhandler(event) {
+/*
+    Eventhandler to change between slices by mousewheel
+*/
+    if (debug) console.log("> mousewheel_eventhandler promise");
+    if(event.originalEvent.wheelDelta < 0 || event.originalEvent.detail > 0) {
+       //scroll down
+       loadPreviousImage();
+    }
+    else {
+       //scroll up
+       loadNextImage();
+    }
+
+    //prevent page fom scrolling
+    return false;
+}
+
+function keydown_eventhandler(event) {
+/*
+    Enenthandler to change between slices by arrow keys
+*/
+    if (debug) console.log("> keydown_eventhandler promise");
+    switch(event.which) {
+            case 37: // left arrow
+    	    loadPreviousImage();
+            break;
+
+            case 38: // up arrow
+    	    loadNextImage();
+            break;
+
+            case 39: // right arrow
+    	    loadNextImage();
+            break;
+
+            case 40: // down arrow
+    	    loadPreviousImage();
+            break;
+
+            default: return; // exit this handler for other keys
+        }
+        event.preventDefault(); // prevent the default action (scroll / move caret)
+}
+
 function initMicrodraw() {
 	if(debug) console.log("> initMicrodraw promise");
 	
@@ -1167,15 +1261,18 @@ function initMicrodraw() {
 	
 	// Enable click on toolbar buttons
 	$("img.button").click(toolSelection);
-
        	
 	// Configure currently selected tool
 	selectedTool="zoom";
 	selectTool();
-        // load tile sources
+
+    // load tile sources
 	$.get(params.source,function(obj) {
-            // update image info with relevant information!    
-            // create function on any entry with getTileUrl
+        // Init slider that can be used to change between slides
+        initSlider(0, obj.names.length, 1, 0);
+
+        // update image info with relevant information!
+        // create function on any entry with getTileUrl
                 imageOrder = []
                 for (var i = 0; i < obj.tileSources.length; i++) {
                     if (obj.tileSources[i].getTileUrl != undefined) {
@@ -1259,16 +1356,22 @@ function initMicrodraw() {
 			{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 		]});
 
-                // add event that triggers the addition of predictions tiles when the dropdown is changed
-                $("#predictions").on('change', addOpaquePredictionTiles);
+        // add event that triggers the addition of predictions tiles when the dropdown is changed
+        $("#predictions").on('change', addOpaquePredictionTiles);
 
-                // add event for chaning the slice name in the input field
-                $("#slice-name").on('blur', loadImageEvent);
+        // add event for chaning the slice name in the input field
+        $("#slice-name").on('blur', loadImageEvent);
 
 
 		if(debug) console.log("< initMicrodraw resolve: success");
 		def.resolve();
 	});
+
+	// Change slide by arrow keys
+    $(document).keydown(keydown_eventhandler);
+
+    // Change slides by mousewheel if the mouse is over the toolbar
+    $("#info").on("mousewheel DOMMouseScroll", mousewheel_eventhandler);
 	
 	$(window).resize(function() {
 		$("#regionList").height($(window).height()-$("#regionList").offset().top);
