@@ -1316,10 +1316,6 @@ function initMicrodraw() {
 
     // load tile sources
 	$.get(params.source,function(obj) {
-		// this is necessary for Karstens PC.
-        // TODO find out why
-        obj = JSON.parse(obj);
-
         // Init the datalist with all slice numbers
         init_slice_datalist(obj.names);
 
