@@ -1266,22 +1266,13 @@ function keydown_eventhandler(event) {
     if (debug) console.log("> keydown_eventhandler promise");
     switch(event.which) {
             case 37: // left arrow
-    	    loadPreviousImage();
-            break;
-
-            case 38: // up arrow
-    	    loadNextImage();
-            break;
-
+    	        loadPreviousImage();
+                break;
             case 39: // right arrow
-    	    loadNextImage();
-            break;
-
-            case 40: // down arrow
-    	    loadPreviousImage();
-            break;
-
-            default: return; // exit this handler for other keys
+    	        loadNextImage();
+                break;
+            default:
+                return; // exit this handler for other keys
     }
     event.preventDefault(); // prevent the default action (scroll / move caret)
 }
