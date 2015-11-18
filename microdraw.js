@@ -1286,6 +1286,19 @@ function keydown_eventhandler(event) {
     event.preventDefault(); // prevent the default action (scroll / move caret)
 }
 
+function init_slice_datalist(data) {
+/*
+    Inits a datalist with all known slice numbers.
+*/
+    var options = "";
+    for(i = 0; i < data.length; i++)  {
+        options += "<option value=\"" + data[i] + "\" />";
+    }
+
+    // Append options to datalist
+    $("#slice-names").append(options);
+}
+
 function initMicrodraw() {
 	if(debug) console.log("> initMicrodraw promise");
 	
@@ -1303,6 +1316,13 @@ function initMicrodraw() {
 
     // load tile sources
 	$.get(params.source,function(obj) {
+		// this is necessary for Karstens PC.
+        // TODO find out why
+        obj = JSON.parse(obj);
+
+        // Init the datalist with all slice numbers
+        init_slice_datalist(obj.names);
+
         // Init slider that can be used to change between slides
         initSlider(0, obj.names.length, 1, 0);
 
