@@ -1224,9 +1224,44 @@ function mousewheel_eventhandler(event) {
     return false;
 }
 
+function find_slice_number(number_str) {
+/*
+    Searches for the given slice-number.
+    If the number could be found its index will be returned. Otherwise -1
+*/
+    var number = parseInt(number_str); // number = NaN if cast to int failed!
+    if (!isNaN(number)) {
+        for(i = 0; i < imageOrder.length; i++)  {
+                var slice_number = parseInt(imageOrder[i]);
+                // Compare the int values because the string values might be different (e.g. "0001" != "1")
+                if(number == slice_number) {
+                    return i;
+                }
+        }
+    }
+
+    return -1;
+}
+
+function slice_name_onenter(event) {
+/*
+    Eventhandler to open a specific slice by the enter key
+*/
+    if (debug) console.log("> slice_name_onenter promise");
+    if (event.keyCode == 13) { // enter key
+        var slice_number = $(this).val();
+        var index = find_slice_number(slice_number);
+        if(index > -1) { // if slice number exists
+            update_slider_value(index);
+            loadImage(imageOrder[index]);
+        }
+    }
+    event.preventDefault(); // prevent the default action (scroll / move caret)
+}
+
 function keydown_eventhandler(event) {
 /*
-    Enenthandler to change between slices by arrow keys
+    Eventhandler to change between slices by arrow keys
 */
     if (debug) console.log("> keydown_eventhandler promise");
     switch(event.which) {
@@ -1247,8 +1282,8 @@ function keydown_eventhandler(event) {
             break;
 
             default: return; // exit this handler for other keys
-        }
-        event.preventDefault(); // prevent the default action (scroll / move caret)
+    }
+    event.preventDefault(); // prevent the default action (scroll / move caret)
 }
 
 function initMicrodraw() {
@@ -1367,11 +1402,14 @@ function initMicrodraw() {
 		def.resolve();
 	});
 
-	// Change slide by arrow keys
+	// Change slices by arrow keys
     $(document).keydown(keydown_eventhandler);
 
-    // Change slides by mousewheel if the mouse is over the toolbar
+    // Change slices by mousewheel if the mouse is over the toolbar
     $("#info").on("mousewheel DOMMouseScroll", mousewheel_eventhandler);
+
+    // Change current slice by typing in the slice number and pessing the enter key
+    $("#slice-name").keyup(slice_name_onenter);
 	
 	$(window).resize(function() {
 		$("#regionList").height($(window).height()-$("#regionList").offset().top);
