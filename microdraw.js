@@ -19,12 +19,13 @@ var	params;			            // URL parameters
 var	myIP;			            // user's IP
 var UndoStack = [];
 var RedoStack = [];
-var mouseUndo;                  // tentative undo information.
-var shortCuts = [];             // List of shortcuts
-var newRegionFlag;	            // true when a region is being drawn
-var drawingPolygonFlag = false; // true when drawing a polygon
-var annotationLoadingFlag;      // true when an annotation is being loaded
-var config = {}                 // App configuration object
+var mouseUndo;                // tentative undo information.
+var shortCuts = [];           // List of shortcuts
+var newRegionFlag;	          // true when a region is being drawn
+var drawingPolygonFlag = false;       // true when drawing a polygon
+var firstPoint;                 //is set tot the first point that should be snapped to (when using the tool snappoint)
+var annotationLoadingFlag;    // true when an annotation is being loaded
+var config={}                  // App configuration object
 var isMac = navigator.platform.match(/Mac/i)?true:false;
 var isIOS = navigator.platform.match(/(iPhone|iPod|iPad)/i)?true:false;
 
@@ -655,6 +656,53 @@ function mouseDown(x,y) {
             }
             break;
         }
+        case "snappoint": {
+            
+            var hitResult=paper.project.hitTest(point, {
+                             tolerance:10,
+                             stroke: true,
+                             segments:true,
+                             fill: true,
+                             handles:true
+            });
+            newRegionFlag=false; 
+
+            if (hitResult) {
+                var i;
+                for(i=0;i<ImageInfo[currentImage]["Regions"].length;i++) {
+                    if(ImageInfo[currentImage]["Regions"][i].path==hitResult.item) {
+                        re=ImageInfo[currentImage]["Regions"][i];
+                        break;
+                    }
+                }
+
+                // select path
+                if(region && region!=re) {
+                    region.path.selected=false;
+                    prevRegion=region;
+                }
+                selectRegion(re);
+
+                // did hit a point?
+                if (hitResult.type == 'segment') {
+                    if (firstPoint == undefined){
+                        console.log('Got first Point');
+                        firstPoint = hitResult; 
+                    }
+                    else {
+                        // can snap the two points
+                        var secondPoint = hitResult;
+                        console.log('Got second point');
+                        newx = (firstPoint.segment.point.x + secondPoint.segment.point.x) / 2;
+                        newy = (firstPoint.segment.point.y + secondPoint.segment.point.y) / 2;
+                        firstPoint.segment.point = {'x': newx, 'y': newy};
+                        secondPoint.segment.point = {'x': newx, 'y':newy};
+                        firstPoint = undefined;
+                    }
+                } 
+            }
+            break;
+        }
         case "draw": {
             // Start a new region
             // if there was an older region selected, unselect it
@@ -1110,6 +1158,7 @@ function toolSelection(event) {
     //end drawing of polygons and make open form
     if( drawingPolygonFlag == true )
         finishDrawingPolygon(true);
+    firstPoint=undefined;
 
     var prevTool = selectedTool;
     selectedTool = $(this).attr("id");
@@ -1121,6 +1170,7 @@ function toolSelection(event) {
         case "delpoint":
         case "addregion":
         case "delregion":
+        case "snappoint":
         case "draw":
         case "rotate":
         case "draw-polygon":
