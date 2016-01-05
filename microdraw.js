@@ -698,6 +698,7 @@ function mouseDown(x,y) {
                         firstPoint.segment.point = {'x': newx, 'y': newy};
                         secondPoint.segment.point = {'x': newx, 'y':newy};
                         firstPoint = undefined;
+                        commitMouseUndo();
                     }
                 } 
             }
@@ -729,6 +730,7 @@ function mouseDown(x,y) {
                 region.path.fillColor.alpha = 0;
                 region.path.selected = true;
                 drawingPolygonFlag = true;
+                commitMouseUndo();
             } else {
                 var hitResult = paper.project.hitTest(point, {tolerance:10, segments:true});
                 if( hitResult && hitResult.item == region.path && hitResult.segment.point == region.path.segments[0].point ) {
@@ -738,6 +740,7 @@ function mouseDown(x,y) {
                 } else {
                     // add point to region
                     region.path.add(point);
+                    commitMouseUndo();
                 }
             }
             break;
@@ -1003,7 +1006,7 @@ function cmdRedo() {
  * Return a complete copy of the current state as an undo object.
  */
 function getUndo() {
-    var undo = { imageNumber: currentImage, regions: [] };
+    var undo = { imageNumber: currentImage, regions: [], drawingPolygonFlag: drawingPolygonFlag };
     var info = ImageInfo[currentImage]["Regions"];
 
     for( var i = 0; i < info.length; i++ ) {
@@ -1056,8 +1059,9 @@ function applyUndo(undo) {
 		project.addChild(path);
 		path.importJSON(el.json);
 		reg = newRegion({name:el.name, path:path}, undo.imageNumber);
-		reg.path.selected = el.selected;
+                // here order matters. if fully selected is set after selected, partially selected paths will be incorrect
 		reg.path.fullySelected = el.fullySelected;
+		reg.path.selected = el.selected;
 		if( el.selected ) {
 			if( region === null )
 				region = reg;
@@ -1065,6 +1069,7 @@ function applyUndo(undo) {
 				console.log("Should not happen: two regions selected?");
 		}
     }
+    drawingPolygonFlag = undo.drawingPolygonFlag;
 }
 
 /**
@@ -1092,6 +1097,7 @@ function finishDrawingPolygon(closed){
         region.path.fullySelected = true;
         //region.path.smooth();
         drawingPolygonFlag = false;
+        commitMouseUndo();
 }
 
 function backToPreviousTool(prevTool) {
