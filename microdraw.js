@@ -1193,6 +1193,10 @@ function toolSelection(event) {
         case "home":
             backToPreviousTool(prevTool);
             break;
+        case "load":
+            interactLoadFromUser();
+            backToPreviousTool(prevTool);
+            break;
         case "prev":
             loadPreviousImage();
             backToPreviousTool(prevTool);
@@ -1312,18 +1316,38 @@ function microdrawDBSave() {
     }
 }
 
-function microdrawDBLoad() {
+function interactLoadFromUser() {
+    /*
+     *  *  Ask for a username and load annotations of this username
+     *   */
+
+        if (debug) console.log("> interactLoadFromUser promise");
+
+            var user = prompt("Please enter the username", "cytomapping");
+                if (user != null) {
+                            var origin = {};
+                            origin.appName = myOrigin.appName;
+                            origin.slice = myOrigin.slice;
+                            origin.source= myOrigin.source;
+                            origin.user = user;
+                            microdrawDBLoad(origin);
+                                                                }
+
+}
+
+function microdrawDBLoad(origin) {
 /*
     Load SVG overlay from microdrawDB
 */
-	if( debug ) console.log("> microdrawDBLoad promise");
-	
-	var	def = $.Deferred();
-	var	key = "regionPaths";
-	var slice = myOrigin.slice;
+	if(debug) console.log("> microdrawDBLoad promise");
+        var ori = typeof origin != 'undefined' ? origin : myOrigin;
+	var	def=$.Deferred();
+	var	key="regionPaths";
+	var slice=ori.slice;
+        console.log(JSON.stringify(ori));
     $.get(dbroot,{
 		"action":"load_last",
-		"origin":JSON.stringify(myOrigin),
+		"origin":JSON.stringify(ori),
 		"key":key
 	}).success(function(data) {
 		var	i,obj,reg;

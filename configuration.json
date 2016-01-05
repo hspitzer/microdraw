@@ -1,7 +1,7 @@
 {
     "useDatabase":true,
     "hideToolbar":false,
-    "regionOntology":true,
+    "regionOntology":false,
     "drawingEnabled":true,
     "removeTools":[]
 }
