@@ -1,7 +1,7 @@
 //(function() {                 // force everything local.
-var debug = 0;
+var debug = 1;
 
-var dbroot = "http://"+localhost+"/microdraw/php/microdraw_db.php";
+var dbroot = "php/microdraw_db.php";
 var ImageInfo = {};             // regions, and projectID (for the paper.js canvas) for each slices, can be accessed by the slice name. (e.g. ImageInfo[imageOrder[viewer.current_page()]])
                                 // regions contain a paper.js path, a unique ID and a name
 var imageOrder = [];            // names of slices ordered by their openseadragon page numbers
@@ -1590,7 +1590,7 @@ function initAnnotationOverlay(data) {
 
     /* RT: commenting this line out solves the image size issues */
        // set size of the current overlay to match the size of the current image
-       magicV = viewer.world.getItemAt(0).getContentSize().x / 100;
+       magicV = viewer.world.getItemAt(0).getContentSize().x;
 
     transform();
 }
