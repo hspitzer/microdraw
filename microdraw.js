@@ -1222,8 +1222,9 @@ function microdrawDBSave() {
         // check if the slice annotations have changed since loaded by computing a hash
         var h = hash(JSON.stringify(value.Regions)).toString(16);
         if( debug > 1 )
-            console.log("hash:",h,"original hash:",slice.Hash);
-        if( slice.Hash !== undefined && h==slice.Hash ) {
+            console.log("slice:",sl, "hash:",h,"original hash:",slice.Hash);
+        // if the slice hash is undefined, this slice has not yet been loaded. do not save anything for this slice
+        if( slice.Hash == undefined || h==slice.Hash ) {
             if( debug > 1 )
                 console.log("No change, no save");
             value.Hash = h;
@@ -1232,6 +1233,8 @@ function microdrawDBSave() {
         value.Hash = h;
 
         // post data to database
+        (function(sl, h) {
+            console.log('saving slice ', sl);
         $.ajax({
             url:dbroot,
             type:"POST",
@@ -1247,12 +1250,15 @@ function microdrawDBSave() {
                 "value":JSON.stringify(value)
             },
             success: function(data) {
-                console.log("< microdrawDBSave resolve: Successfully saved regions:",slice.Regions.length,"slice: " + sl.toString(),"response:",data);
+                console.log("< microdrawDBSave resolve: Successfully saved regions:",ImageInfo[sl].Regions.length,"slice: " + sl.toString(),"response:",data);
+                //update hash
+                ImageInfo[sl].Hash = h;
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 console.log("< microdrawDBSave resolve: ERROR: " + textStatus + " " + errorThrown,"slice: "+sl.toString());
             }
         });
+        })(sl, h);
     }
 }
 
