@@ -785,7 +785,7 @@ function mouseDrag(x,y,dx,dy) {
         }
     }
     if( selectedTool == "rotate" ) {
-        event.stopHandlers = true;
+        //event.stopHandlers = true;
         var degree = parseInt(dpoint.x);
         var i;
         for( i in ImageInfo[currentImage]["Regions"] ) {
