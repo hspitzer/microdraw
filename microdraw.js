@@ -467,7 +467,7 @@ function doublePressOnRegion(event) {
                 regionPicker(this);
                 }
                 else {
-                    var name = prompt("Region name");
+                    var name = prompt("Region name", findRegionByUID(this.id).name);
                     if( name != null ) {
                         changeRegionName(findRegionByUID(this.id), name);
                     }
@@ -1980,7 +1980,8 @@ function initMicrodraw2(obj) {
 		zoomInButton:"zoom-in",
 		zoomOutButton:"zoom-out",
 		homeButton:"home",
-		preserveViewport: true
+		preserveViewport: true,
+                zoomPerScroll: 2.0
 	});
 
 	// open the currentImage
