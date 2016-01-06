@@ -29,6 +29,9 @@ var config={}                  // App configuration object
 var isMac = navigator.platform.match(/Mac/i)?true:false;
 var isIOS = navigator.platform.match(/(iPhone|iPod|iPad)/i)?true:false;
 
+// predictions and masks
+var predictionTiles = undefined;
+var maskTiles = undefined;
 /***1
     Region handling functions
 */
@@ -1252,6 +1255,9 @@ function toolSelection(event) {
             toggleMenu();
             backToPreviousTool(prevTool);
             break;
+        case "toggle-mask":
+            addOpaqueMaskTiles();
+            backToPreviousTool(prevTool);
     }
 }
 
@@ -1719,6 +1725,7 @@ function updateSliceName() {
     $("title").text("MicroDraw|" + filename + "|" + currentImage);
 }
 
+
 function initShortCutHandler() {
     $(document).keydown(function(e) {
         var key = [];
@@ -1831,6 +1838,77 @@ function slice_name_onenter(event) {
     }
     event.preventDefault(); // prevent the default action (scroll / move caret)
 }
+
+/*
+ * Mask and prediction overlays
+ */
+
+function addOpaqueMaskTiles() {
+        if (debug) console.log("> addOpaqueMaskTiles promise");
+        var tiles;
+        var source;
+        if (ImageInfo[currentImage]["maskSource"] == undefined) {
+            alert("No mask available")
+        }
+        else {
+            if (maskTiles == undefined) {
+                // add tiled image 
+                if (debug) console.log('adding mask');
+                
+                var func = function(data) {
+                    if (debug) console.log("added Tiled Image to world");
+                    maskTiles = data.item;
+                    viewer.world.removeHandler('add-item', func);
+
+                };
+                viewer.world.addHandler('add-item', func);             
+                viewer.addTiledImage({tileSource: ImageInfo[currentImage]["maskSource"], opacity:0.5});
+           }
+           else {
+               if (debug) console.log('removing mask');
+               viewer.world.removeItem(maskTiles);
+               maskTiles = undefined;
+           }  
+        }
+}
+
+function fillPredictionSelect() {
+    if (debug) console.log('> fillPredictionSelect');
+    // delete all entries from predictions select
+    $("#predictions").empty();
+
+    // fill predictions select with values
+    var sel = $("#predictions"); //document.getElementById('predictions');
+    sel.append("<option value='none'>No Predictions</option>");
+    for (var i = 0; i < ImageInfo[currentImage]["predictionSources"].length; i++) {
+        var source = ImageInfo[currentImage]["predictionSources"][i];
+        var opt = "<option id='" + i + "' value='" + source + "'>" + source + "</option>";
+        sel.append(opt);
+    }
+
+}
+
+function addOpaquePredictionTiles(event) {
+        if (debug) console.log("> addOpaquePredictionTiles promise");
+        var name = $("#predictions").val();
+        if (predictionTiles != undefined) {
+            // remove old tiles 
+            viewer.world.removeItem(predictionTiles);
+            predictionTiles = undefined;
+        }
+        if (name != "none") {
+            // add new tiles
+            var func = function(data) {
+                if (debug) console.log("added Tiled Image to world");
+                predictionTiles = data.item;
+                viewer.world.removeHandler('add-item', func);
+            };
+            viewer.world.addHandler('add-item', func);
+            viewer.addTiledImage({tileSource: name, opacity:0.5});
+        }
+
+}
+
 
 function loadConfiguration() {
     var def = $.Deferred();
@@ -1958,6 +2036,10 @@ function initMicrodraw() {
         resizeAnnotationOverlay();
     });
 
+    // add event that triggers the addition of prediction tiles when the dropdown in change
+    $("#predictions").on('change', addOpaquePredictionTiles);
+
+
     appendRegionTagsFromOntology(Ontology);
 
     return def.promise();
@@ -1977,12 +2059,33 @@ function initMicrodraw2(obj) {
 		// name is either the index of the tileSource or a named specified in the json file
 		var name = ((obj.names && obj.names[i]) ? String(obj.names[i]) : String(i));
 		imageOrder.push(name);
-		ImageInfo[name] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined};
+		ImageInfo[name] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined, "predictionSources":[], "maskSource":undefined};
 		// if getTileUrl is specified, we might need to eval it to get the function
 		if( obj.tileSources[i].getTileUrl && typeof obj.tileSources[i].getTileUrl === 'string' ) {
 			eval("ImageInfo[name]['source'].getTileUrl = " + obj.tileSources[i].getTileUrl);
 		}
 	}
+        // find all masks and associate them with their tileSource
+        for (var key in obj.maskSources) {
+            if (key in ImageInfo) {
+                ImageInfo[key]["maskSource"] = obj.maskSources[key];
+                if (obj.maskSources[key].getTileUrl && typeof obj.maskSources[key].getTileUrl == 'string') {
+                    eval("ImageInfo[key]['maskSource'].getTileUrl = " + obj.maskSources[key].getTileUrl);
+                }
+            }
+        }
+        for (var key in obj.predictionSources) {
+            if (key in ImageInfo) {
+                for (var i = 0; i < obj.predictionSources[key].length; i++) {
+                    ImageInfo[key]["predictionSources"].push(obj.predictionSources[key][i]);
+                    if (obj.predictionSources[key][i].getTileUrl && typeof obj.predictionSources[key][i].getTileUrl == 'string') {
+                        eval("ImageInfo[key]['predictionSources'][i].getTileUrl = " + obj.predictionSources[key][i].getTileUrl);
+                    }
+                }
+            }
+        }
+        
+        console.log(ImageInfo);
 	
 	// init slider that can be used to change between slides
 	initSlider(0, obj.tileSources.length, 1, Math.round(obj.tileSources.length / 2));
@@ -2027,6 +2130,8 @@ function initMicrodraw2(obj) {
 		initAnnotationOverlay();
 		updateSliceName();
 	});
+        viewer.addHandler('open', fillPredictionSelect);
+
 	viewer.addHandler('animation', function(event){
 		transform();
 	});
@@ -2039,7 +2144,8 @@ function initMicrodraw2(obj) {
 		{tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
 		{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 	]});
-
+        
+      
 	if( debug ) console.log("< initMicrodraw2 resolve: success");
 }
 
