@@ -3,6 +3,6 @@
     "hideToolbar":false,
     "regionOntology":false,
     "drawingEnabled":true,
-    "removeTools":[],
+    "removeTools":["predictions"],
     "multiImageSave":false
 }

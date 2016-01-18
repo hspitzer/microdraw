@@ -1509,6 +1509,17 @@ function loadImage(name) {
     if( debug ) console.log("> loadImage(" + name + ")");
     // save previous image for some (later) cleanup
     prevImage = currentImage;
+    // unload the mask 
+    if( maskTiles != undefined ){
+        viewer.world.removeItem(maskTiles);
+        maskTiles = undefined;
+    }
+    // unload the predictions
+    if (predictionTiles != undefined) {
+        viewer.world.removeItem(predictionTiles);
+        predictionTiles = undefined;
+    }
+
 
     // set current image to new image
     currentImage = name;
