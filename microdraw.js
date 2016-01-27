@@ -1358,25 +1358,25 @@ function microdrawDBLoad(origin) {
 /*
     Load SVG overlay from microdrawDB
 */
-	if(debug) console.log("> microdrawDBLoad promise");
-        var ori = typeof origin != 'undefined' ? origin : myOrigin;
-	var	def=$.Deferred();
-	var	key="regionPaths";
-	var slice=ori.slice;
-        console.log(JSON.stringify(ori));
+    if(debug) console.log("> microdrawDBLoad promise");
+    var ori = typeof origin != 'undefined' ? origin : myOrigin;
+    var	def=$.Deferred();
+    var	key="regionPaths";
+    var slice=ori.slice;
+    console.log(JSON.stringify(ori));
     $.get(dbroot,{
 		"action":"load_last",
 		"origin":JSON.stringify(ori),
 		"key":key
-	}).success(function(data) {
-		var	i,obj,reg;
-		annotationLoadingFlag = false;
-        if( data.length == 0 )
-            return;
-		
-		// if the slice that was just loaded does not correspond to the current slice,
-		// do not display this one and load the current slice.
-		if( slice != currentImage ) {
+    }).success(function(data) {
+	var	i,obj,reg;
+	annotationLoadingFlag = false;
+        console.log(data);
+       		
+	// if the slice that was just loaded does not correspond to the current slice,
+	// do not display this one and load the current slice.
+	if( slice != currentImage ) {
+            console.log('reloading annotations because slice changed');
             microdrawDBLoad()
             .then(function() {
                 $("#regionList").height($(window).height()-$("#regionList").offset().top);
@@ -1384,15 +1384,23 @@ function microdrawDBLoad(origin) {
                 paper.view.draw();
             });
             def.fail();
-		    return;
-		}
+	    return;
+	}
 	
-		// parse the data and add to the current canvas
-		// console.log("[",data,"]");
+        // if there is no data on the current slice 
+        // save hash for the image none the less
+        if( data.length == 0 ) {
+            ImageInfo[currentImage]["Hash"] = hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16);
+            return;
+        }
+
+
+	// parse the data and add to the current canvas
+	// console.log("[",data,"]");
         obj = JSON.parse(data);
-		if( obj ) {
-			obj = JSON.parse(obj.myValue);
-			for( i = 0; i < obj.Regions.length; i++ ) {
+	if( obj ) {
+	    obj = JSON.parse(obj.myValue);
+	    for( i = 0; i < obj.Regions.length; i++ ) {
 				var reg = {};
 				var	json;
 				reg.name = obj.Regions[i].name;
@@ -1401,17 +1409,17 @@ function microdrawDBLoad(origin) {
 				reg.path = new paper.Path();
 				reg.path.importJSON(json);
 				newRegion({name:reg.name,path:reg.path});
-			}
-			paper.view.draw();
+	    }
+	    paper.view.draw();
             // if image has no hash, save one
-			ImageInfo[currentImage]["Hash"] = (obj.Hash ? obj.Hash : hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16));
-    
-		}
-		if( debug ) console.log("< microdrawDBLoad resolve success. Number of regions:", ImageInfo[currentImage]['Regions'].length);
-		def.resolve();
-	}).error(function(jqXHR, textStatus, errorThrown) {
+	    ImageInfo[currentImage]["Hash"] = (obj.Hash ? obj.Hash : hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16));
+            console.log('Hash' + ImageInfo[currentImage]["Hash"]);
+	}
+	if( debug ) console.log("< microdrawDBLoad resolve success. Number of regions:", ImageInfo[currentImage]['Regions'].length);
+	    def.resolve();
+    }).error(function(jqXHR, textStatus, errorThrown) {
         console.log("< microdrawDBLoad resolve ERROR: " + textStatus + " " + errorThrown);
-		annotationLoadingFlag = false;
+	annotationLoadingFlag = false;
     });
     return def.promise();
 }
