@@ -157,7 +157,7 @@ function findRegionByUID(uid) {
             return ImageInfo[currentImage]["Regions"][i];
         }
     }
-    console.log("Region with unique ID "+uid+" not found");
+    //console.log("Region with unique ID "+uid+" not found");
     return null;
 }
 
@@ -1280,6 +1280,9 @@ function microdrawDBSave() {
     var key = "regionPaths";
     var savedSlices = "Saving slices: ";
     for( var sl in ImageInfo ) {
+        if ((config.multiImageSave == false) && (sl != currentImage)){
+            continue;
+        }
         // configure value to be saved
         var slice = ImageInfo[sl];
         var value = {};
@@ -1370,7 +1373,7 @@ function microdrawDBLoad(origin) {
     var	def=$.Deferred();
     var	key="regionPaths";
     var slice=ori.slice;
-    console.log(JSON.stringify(ori));
+    //console.log(JSON.stringify(ori));
     $.get(dbroot,{
 		"action":"load_last",
 		"origin":JSON.stringify(ori),
@@ -1378,7 +1381,7 @@ function microdrawDBLoad(origin) {
     }).success(function(data) {
 	var	i,obj,reg;
 	annotationLoadingFlag = false;
-        console.log(data);
+        //console.log(data);
        		
 	// if the slice that was just loaded does not correspond to the current slice,
 	// do not display this one and load the current slice.
@@ -1420,7 +1423,7 @@ function microdrawDBLoad(origin) {
 	    paper.view.draw();
             // if image has no hash, save one
 	    ImageInfo[currentImage]["Hash"] = (obj.Hash ? obj.Hash : hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16));
-            console.log('Hash' + ImageInfo[currentImage]["Hash"]);
+            //console.log('Hash' + ImageInfo[currentImage]["Hash"]);
 	}
 	if( debug ) console.log("< microdrawDBLoad resolve success. Number of regions:", ImageInfo[currentImage]['Regions'].length);
 	    def.resolve();
@@ -1541,14 +1544,13 @@ function resizeAnnotationOverlay() {
 }
 
 function initAnnotationOverlay(data) {
-    //if( debug ) console.log("> initAnnotationOverlay");
-    
+    if( debug ) console.log("> initAnnotationOverlay");
     // do not start loading a new annotation if a previous one is still being loaded
     if(annotationLoadingFlag==true) {
         return;
     }
     
-    console.log("new overlay size" + viewer.world.getItemAt(0).getContentSize());
+    //console.log("new overlay size" + viewer.world.getItemAt(0).getContentSize());
 
     /*
        Activate the paper.js project corresponding to this slice. If it does not yet
@@ -1765,9 +1767,13 @@ function initSlider(min_val, max_val, step, default_value) {
             slider_onchange(this.value);
         });
 
-        slider.on("input", function() {
-            slider_onchange(this.value);
-        });
+        // Input event can only be used when not using database, otherwise the annotations will be loaded several times
+        // TODO fix the issue with the annotations for real
+        if (config.useDatabase == false) {
+            slider.on("input", function() {
+                slider_onchange(this.value);
+            });
+        }
     }
 }
 
