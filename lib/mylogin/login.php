@@ -13,10 +13,11 @@ $rootdir = "/microdraw-new";
 include $_SERVER['DOCUMENT_ROOT'].$rootdir."/php/base.php";
 $connection=mysqli_connect($dbhost,$dbuser,$dbpass,$dblogin) or die("ERROR: Can't connect to MySQL DB: " . mysql_error());
 
-if(isset($_GET["action"]))
+if(isset($_GET["action"])) $action=$_GET;
+if(isset($_POST["action"])) $action=$_POST;
+
+switch($action["action"])
 {
-	switch($_GET["action"])
-	{
 		case "check":
 			user_check();
 			break;
@@ -32,8 +33,8 @@ if(isset($_GET["action"]))
 		case "logout":
 			user_logout();
 			break;
-	}
 }
+
 function user_check()
 {
     if(isset($_SESSION['LoggedIn']) and $_SESSION['LoggedIn']==1)
