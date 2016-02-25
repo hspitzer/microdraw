@@ -23,6 +23,9 @@ switch($action["action"])
 	case "remote_address":
 		remote_address();
 		break;
+    case "load_annotations":
+        loadAnnotations($action);
+        break;
 }
 
 function save($args)
@@ -98,5 +101,46 @@ function remote_address()
 	header("Access-Control-Allow-Origin: *");
 
 	echo $_SERVER['REMOTE_ADDR'];
+}
+function loadAnnotations($args)
+{
+    global $connection;
+    global $dbname;
+    $arr = array();
+
+       header("Access-Control-Allow-Origin: *");
+       $users = getUsers();
+    foreach ($users as $user)
+    {
+       $q="SELECT UniqueID, myOrigin, myValue FROM ".$dbname.".KeyValue WHERE "
+               ." myOrigin like '%\"slice\":\"".$args["slice"]."\"%\"source\":\"".$args["source"]."\"%\"user\":\"".$user."\"%' AND"
+               ." myKey = '".$args["key"]."'"
+               ." ORDER BY myTimestamp DESC LIMIT 1";
+       $result = mysqli_query($connection,$q);
+        if(mysqli_num_rows($result)>0) {
+            $row = mysqli_fetch_assoc($result);
+               $arr[$user]=$row;
+       }
+
+    }
+    echo json_encode($arr);
+    mysqli_free_result($result);
+}
+function getUsers()
+{
+    global $connection;
+    $arr = array();
+
+    header("Access-Control-Allow-Origin: *");
+    $q="SELECT username FROM MyUsers.Users";
+    $result = mysqli_query($connection, $q);
+       while($row = mysqli_fetch_assoc($result)) {
+               if($row["username"])
+               {
+                       array_push($arr,$row["username"]);
+               }
+       }
+    mysqli_free_result($result);
+    return $arr;
 }
 ?>

@@ -115,6 +115,16 @@ html,body {
 	display:none;
 	z-index:10;
 }
+#annotationSelector {
+       position:absolute;
+       left:200px;
+    width:170px;
+    height:20em;
+       overflow-x: auto;
+       background-color:rgba(200,200,200,0.5);
+       display:none;
+       z-index:10;
+}
 #fillColorPicker {
 	position:absolute;
 	width:4.95em;

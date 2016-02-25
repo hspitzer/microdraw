@@ -846,6 +846,116 @@ function flipRegion(reg) {
     }
 }
 
+var RegionsToSelect = {};
+var annotationPreviewUndo = {};
+function toggleAnnotationSelector(action) {
+    /* shows/unshows the annotation selector and loads the appropriate annotations */
+    if( debug ) console.log("> toggleAnnotationSelector");
+    if (action == undefined) {
+        if( $('#annotationSelector').css('display') == 'none' ) {
+            action = 'on';
+        } else {
+            action = 'off';
+        }
+    }
+
+    if( action == 'on') {
+        $('#annotationSelector').css('display', 'block');
+
+        // get the annotations of other users for this slice
+        $.get(dbroot,{
+            "action":"load_annotations",
+            "slice":currentImage,
+            "source":myOrigin.source,
+            "key":"regionPaths"
+        }).success(function(data) {
+            obj = JSON.parse(data);
+            if( obj ) {
+                RegionsToSelect = {};
+                for (var user in obj) {
+                    RegionsToSelect[user] = JSON.parse(obj[user].myValue);
+                }
+            }
+
+            // display the users and annotation names
+            for (var user in RegionsToSelect) {
+                if (user != myOrigin.user) {
+                    var item="<div>" + user + "<ul id='list_" + user + "'> </ul></div>";
+                    $('#annotationSelector').append(item);
+                    for (var i in RegionsToSelect[user]["Regions"]) {
+                        var item = "<li><input type='checkbox' class='checkbox' id='chck_" + user + "_" + i + "'>"
+                        item += RegionsToSelect[user]["Regions"][i].name + "</input></li>";
+                        $('#list_'+user).append(item);
+                    }
+                }
+            }
+            var item = "<input type='button' id='applyAnnotation' value='apply' />"
+            $('#annotationSelector').append(item);
+
+            annotationPreviewUndo = getUndo();
+            // add event that toggles the previewing of any annotations
+            $(".checkbox").on('change', toggleAnnotationPreview);
+            // add event that applies the previewed annotations
+            $("#applyAnnotation").on('click', applyPreviewedAnnotations);
+        });
+    }
+    else {
+        $('#annotationSelector').css('display', 'none');
+        $('#annotationSelector').html("Annotations");
+        console.log('unloading annotations!!');
+        // unload all annotations
+        for (var user in RegionsToSelect) {
+            for (var i in RegionsToSelect[user]["Regions"]) {
+                if (RegionsToSelect[user]["Regions"][i]["reg"])
+                    removeRegion(RegionsToSelect[user]["Regions"][i]["reg"]);
+            }
+        }
+        paper.view.draw();
+    }
+}
+
+
+function toggleAnnotationPreview(event) {
+    if ( debug ) console.log('> toggleAnnotationPreview');
+    var id = event.target.id.split('_');
+    var user = id[1];
+    var index = id[2];
+
+    if(this.checked) {
+        //load annotation
+       var     json;
+       name_ = RegionsToSelect[user]["Regions"][index].name;
+       json = RegionsToSelect[user]["Regions"][index].path;
+       path = new paper.Path();
+       path.importJSON(json);
+
+        reg = newRegion({name:name_,path:path});
+        RegionsToSelect[user]["Regions"][index]["reg"] = reg;
+    }
+    else {
+        // unload annotation
+        reg = RegionsToSelect[user]["Regions"][index]["reg"]
+        removeRegion(reg);
+
+    }
+    paper.view.draw();
+}
+
+function applyPreviewedAnnotations(event) {
+    if ( debug ) console.log('> applyPreviewedAnnotations');
+    // delete the regions from RegionsToSelect so they dont get deleted
+    // when toggling the annotation selector window
+    for (var user in RegionsToSelect) {
+        for (var i in RegionsToSelect[user]["Regions"]) {
+            RegionsToSelect[user]["Regions"][i]["reg"] = undefined;
+        }
+    }
+
+    saveUndo(annotationPreviewUndo);
+    //unshow the selector window
+    toggleAnnotationSelector('off');
+}
+
 /*** 
     the following functions serve changing the annotation style
 ***/
@@ -1257,6 +1367,10 @@ function toolSelection(event) {
             break;
         case "handle":
             toggleHandles();
+            backToPreviousTool(prevTool);
+            break;
+        case "select-annotations":
+            toggleAnnotationSelector();
             backToPreviousTool(prevTool);
             break;
     }
@@ -2175,6 +2289,7 @@ function initMicrodraw2(obj) {
     
     viewer.addHandler('open', fillPredictionSelect);
     viewer.addHandler('open', initOverlay);
+    viewer.addHandler('open', function(event){ toggleAnnotationSelector('off');});
 
 	viewer.addHandler('animation', function(event){
 		transform();
