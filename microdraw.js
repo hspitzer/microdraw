@@ -1179,7 +1179,7 @@ function toolSelection(event) {
 
     //end drawing of polygons and make open form
     if( drawingPolygonFlag == true )
-        finishDrawingPolygon(true);
+        finishDrawingPolygon(false);
     firstPoint=undefined;
 
     var prevTool = selectedTool;
@@ -1255,9 +1255,10 @@ function toolSelection(event) {
             toggleMenu();
             backToPreviousTool(prevTool);
             break;
-        case "toggle-mask":
-            addOpaqueMaskTiles();
+        case "handle":
+            toggleHandles();
             backToPreviousTool(prevTool);
+            break;
     }
 }
 
@@ -1853,35 +1854,61 @@ function slice_name_onenter(event) {
 /*
  * Mask and prediction overlays
  */
+function initOverlay(event) {
+    if (debug) console.log("> initOverlay promise");
+    if (ImageInfo[currentImage]["maskSource"] != undefined) {
+        $("#alpha-mask").attr('disabled', false);
+        if (maskTiles != undefined) {
+            console.log('already has maskTiles...')
+            viewer.world.removeItem(maskTiles);
+         }
+        var func = function(data) {
+            if (debug) console.log("added overlay to world");
+            maskTiles = data.item;
+            viewer.world.removeHandler('add-item', func);
+        };
+        viewer.world.addHandler('add-item', func);
+        viewer.addTiledImage({tileSource: ImageInfo[currentImage]["maskSource"], opacity:0});
 
-function addOpaqueMaskTiles() {
-        if (debug) console.log("> addOpaqueMaskTiles promise");
-        var tiles;
-        var source;
-        if (ImageInfo[currentImage]["maskSource"] == undefined) {
-            alert("No mask available")
-        }
-        else {
-            if (maskTiles == undefined) {
-                // add tiled image 
-                if (debug) console.log('adding mask');
-                
-                var func = function(data) {
-                    if (debug) console.log("added Tiled Image to world");
-                    maskTiles = data.item;
-                    viewer.world.removeHandler('add-item', func);
+        $("#alpha-mask").val(0);
+    }
+    else {
+        $("#alpha-mask").val(0);
+        $("#alpha-mask").attr('disabled', true);
+        console.log($("#alpha-mask"));
+    }
 
-                };
-                viewer.world.addHandler('add-item', func);             
-                viewer.addTiledImage({tileSource: ImageInfo[currentImage]["maskSource"], opacity:0.5});
-           }
-           else {
-               if (debug) console.log('removing mask');
-               viewer.world.removeItem(maskTiles);
-               maskTiles = undefined;
-           }  
-        }
 }
+
+function onChangeOverlaySlider(value) {
+    if (debug) console.log("> onChangeOverlaySlider promise");
+    if (maskTiles != undefined) {
+        maskTiles.setOpacity(value);
+    }
+}
+
+function initOverlaySlider(min_val, max_val, step, default_value) {
+/*
+    Initializes a slider to change the alpha value of the overlay
+*/
+    if( debug ) console.log("> initOverlaySlider promise");
+    var slider = $("#alpha-mask");
+    if( slider.length > 0 ) { // only if slider could be found
+        slider.attr("min", min_val);
+        slider.attr("max", max_val);
+        slider.attr("step", step);
+        slider.val(default_value);
+
+        slider.on("change", function() {
+            onChangeOverlaySlider(this.value);
+        });
+
+
+        slider.on("input", function() {
+            onChangeOverlaySlider(this.value);
+        });
+    }
+ }
 
 function fillPredictionSelect() {
     if (debug) console.log('> fillPredictionSelect');
@@ -2100,6 +2127,10 @@ function initMicrodraw2(obj) {
 	
 	// init slider that can be used to change between slides
 	initSlider(0, obj.tileSources.length, 1, Math.round(obj.tileSources.length / 2));
+    
+    // init overlay slider for the opacity
+    initOverlaySlider(0, 1, 0.1, 0);
+    
 	currentImage = imageOrder[Math.floor(obj.tileSources.length / 2)];
 
 	params.tileSources = obj.tileSources;
@@ -2141,7 +2172,9 @@ function initMicrodraw2(obj) {
 		initAnnotationOverlay();
 		updateSliceName();
 	});
-        viewer.addHandler('open', fillPredictionSelect);
+    
+    viewer.addHandler('open', fillPredictionSelect);
+    viewer.addHandler('open', initOverlay);
 
 	viewer.addHandler('animation', function(event){
 		transform();
