@@ -103,7 +103,7 @@ html,body {
 #prev, #next, #slice-name {
 	vertical-align:middle;
 }
-#slider {
+.sliderClass {
 	width: calc( 100% - 4px); /* 100% - 2*margin */
 }
 
