@@ -72,6 +72,19 @@ html,body {
         line-height:20px;
         padding:20px;
 }
+#saveDialog {
+    display: none;
+    position:absolute;
+    top:20px;
+    left:50%;
+    background-color:white;
+    color:black;
+    text-align:center;
+	border:thin solid lightgrey;
+    z-index:20;
+    line-height:20px;
+    padding:20px;
+}
 
 
 

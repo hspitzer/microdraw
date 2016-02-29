@@ -720,7 +720,6 @@ function mouseDown(x,y) {
         }
         case "draw-polygon": {
             // is already drawing a polygon or not?
-            console.log(drawingPolygonFlag);
             if( drawingPolygonFlag == false ) {
                 // deselect previously selected region
                 if( region )
@@ -1279,6 +1278,7 @@ function microdrawDBSave() {
     // key
     var key = "regionPaths";
     var savedSlices = "Saving slices: ";
+
     for( var sl in ImageInfo ) {
         if ((config.multiImageSave == false) && (sl != currentImage)){
             continue;
@@ -1311,7 +1311,7 @@ function microdrawDBSave() {
 
         // post data to database
         (function(sl, h) {
-            console.log('saving slice ', sl);
+        console.log('saving slice ', sl);
         $.ajax({
             url:dbroot,
             type:"POST",
@@ -1328,7 +1328,7 @@ function microdrawDBSave() {
             },
             success: function(data) {
                 console.log("< microdrawDBSave resolve: Successfully saved regions:",ImageInfo[sl].Regions.length,"slice: " + sl.toString(),"response:",data);
-                
+
                 //update hash
                 ImageInfo[sl].Hash = h;
             },
@@ -1337,6 +1337,10 @@ function microdrawDBSave() {
             }
         });
         })(sl, h);
+        
+        //show dialog box with timeout
+        $('#saveDialog').html(savedSlices).fadeIn();    
+        setTimeout(function() { $("#saveDialog").fadeOut(500);},2000);
     }
     
     //show dialog box with timeout
@@ -1534,7 +1538,7 @@ function loadPreviousImage() {
 
 
 function resizeAnnotationOverlay() {
-    //if( debug ) console.log("> resizeAnnotationOverlay");
+    if( debug ) console.log("> resizeAnnotationOverlay");
 
     var width = $("body").width();
     var height = $("body").height();
@@ -1545,6 +1549,7 @@ function resizeAnnotationOverlay() {
 
 function initAnnotationOverlay(data) {
     if( debug ) console.log("> initAnnotationOverlay");
+    
     // do not start loading a new annotation if a previous one is still being loaded
     if(annotationLoadingFlag==true) {
         return;
