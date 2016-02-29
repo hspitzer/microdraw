@@ -51,22 +51,13 @@
 				<img class="button" id="splitregion"  title="Split region"           src="img/split.svg" />
 				<img class="button" id="rotate"       title="Rotate region"          src="img/rotate.svg" />
 				<img class="button" id="flip"         title="Flip region"            src="img/flip.svg" />
-				<img class="button" id="snappoint"       title="Snap two points on top of each other"          src="img/rotate.svg" />
-                                <img class="button" id="handle"       title="Toggle handles"          src="img/save.svg" />
 			</div>
 			<div class="buttonGroup">
 				<img class="button" id="save"        title="Save annotations"       src="img/save.svg" />
 				<img class="button" id="copy"	     title="Copy path"		        src="img/copy.svg" />
 				<img class="button"	id="paste"	     title="Paste path"		        src="img/paste.svg" />
 				<img class="button" id="delete"      title="Delete region"          src="img/delete.svg" />
-                <img class="button" id="load" title="Load annotations from db" src="img/save.svg" />
 			</div>
-            <div class="buttonGroup">
-                <select id="predictions" style="width:160px">
-                    <option value="none">No Predictions</option>
-                </select>
-                <input type="range" id="alpha-mask" title="Change the transparency of the overlay"/>
-            </div>
 		</div>
 	</div>
 	
@@ -89,10 +80,6 @@
 		<option value="4">blue</option>
 		<option value="5">yellow</option>
 	</select>
-        <br>
-        <br>
-        stroke width
-        <input type="button" id="strokeWidthDec" value="-" onClick="onStrokeWidthDec();"><input type="button" id="strokeWidthInc" value="+" onClick="onStrokeWidthInc();">
 	<br>
 	<br>
 	fill color
@@ -113,17 +100,13 @@
 <div id="openseadragon1" style="width:100%">
 </div>
 
-<!-- alert/info box after saving -->
-<div id="saveDialog"></div>
-
 <!-- naat logo -->
 <a id="logo" href="http://neuroanatomy.github.io">
 	<img src="img/naat.svg" style="width:2.5em" />
 </a>
 
-
 <!-- Load javascript -->
-<script src="lib/paper-full-0.9.25.min.js"></script>
+<script src="lib/paper-full.min.js"></script>
 <script src="lib/openseadragon/openseadragon.js"></script>
 <script src="lib/openseadragon-viewerinputhook.min.js"></script>
 <script src="lib/OpenSeadragonScalebar/openseadragon-scalebar.js"></script>
@@ -131,7 +114,7 @@
 <script src="lib/mylogin/login.js"></script>
 <script src="neurolex-ontology.js"></script>
 <script src="base.js"></script>
-<script src="microdraw.js"></script>
+<script src="microdraw-ws.js"></script>
 </body>
 
 </html>

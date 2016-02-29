@@ -1,7 +1,7 @@
 //(function() {                 // force everything local.
-var debug = 1;
+var debug = 0;
 
-var dbroot = "php/microdraw_db.php";
+var dbroot = "http://"+localhost+"/microdraw/php/microdraw_db.php";
 var ImageInfo = {};             // regions, and projectID (for the paper.js canvas) for each slices, can be accessed by the slice name. (e.g. ImageInfo[imageOrder[viewer.current_page()]])
                                 // regions contain a paper.js path, a unique ID and a name
 var imageOrder = [];            // names of slices ordered by their openseadragon page numbers
@@ -19,19 +19,18 @@ var	params;			            // URL parameters
 var	myIP;			            // user's IP
 var UndoStack = [];
 var RedoStack = [];
-var mouseUndo;                // tentative undo information.
-var shortCuts = [];           // List of shortcuts
-var newRegionFlag;	          // true when a region is being drawn
-var drawingPolygonFlag = false;       // true when drawing a polygon
-var firstPoint;                 //is set tot the first point that should be snapped to (when using the tool snappoint)
-var annotationLoadingFlag;    // true when an annotation is being loaded
-var config={}                  // App configuration object
+var mouseUndo;                  // tentative undo information.
+var shortCuts = [];             // List of shortcuts
+var newRegionFlag;	            // true when a region is being drawn
+var drawingPolygonFlag = false; // true when drawing a polygon
+var annotationLoadingFlag;      // true when an annotation is being loaded
+var config = {}                 // App configuration object
 var isMac = navigator.platform.match(/Mac/i)?true:false;
 var isIOS = navigator.platform.match(/(iPhone|iPod|iPad)/i)?true:false;
 
-// predictions and masks
-var predictionTiles = undefined;
-var maskTiles = undefined;
+var socket=undefined;
+var IAmASlave=false;
+
 /***1
     Region handling functions
 */
@@ -51,10 +50,10 @@ function newRegion(arg, imageNumber) {
 	
 	if( arg.path ) {
 		reg.path = arg.path;
-        reg.path.strokeWidth = arg.path.strokeWidth ? arg.path.strokeWidth : config.defaultStrokeWidth;
-        reg.path.strokeColor = arg.path.strokeColor ? arg.path.strokeColor : config.defaultStrokeColor;
+        reg.path.strokeWidth = arg.path.strokeWidth ? arg.path.strokeWidth : 1;
+        reg.path.strokeColor = arg.path.strokeColor ? arg.path.strokeColor : 'black';
 		reg.path.strokeScaling = false;
-		reg.path.fillColor = arg.path.fillColor ? arg.path.fillColor :'rgba('+color.red+','+color.green+','+color.blue+','+config.defaultFillAlpha+')';
+		reg.path.fillColor = arg.path.fillColor ? arg.path.fillColor :'rgba('+color.red+','+color.green+','+color.blue+',0.5)';
 		reg.path.selected = false;
 	}
 
@@ -160,7 +159,7 @@ function findRegionByUID(uid) {
             return ImageInfo[currentImage]["Regions"][i];
         }
     }
-    //console.log("Region with unique ID "+uid+" not found");
+    console.log("Region with unique ID "+uid+" not found");
     return null;
 }
 
@@ -470,7 +469,7 @@ function doublePressOnRegion(event) {
                 regionPicker(this);
                 }
                 else {
-                    var name = prompt("Region name", findRegionByUID(this.id).name);
+                    var name = prompt("Region name");
                     if( name != null ) {
                         changeRegionName(findRegionByUID(this.id), name);
                     }
@@ -659,54 +658,6 @@ function mouseDown(x,y) {
             }
             break;
         }
-        case "snappoint": {
-            
-            var hitResult=paper.project.hitTest(point, {
-                             tolerance:10,
-                             stroke: true,
-                             segments:true,
-                             fill: true,
-                             handles:true
-            });
-            newRegionFlag=false; 
-
-            if (hitResult) {
-                var i;
-                for(i=0;i<ImageInfo[currentImage]["Regions"].length;i++) {
-                    if(ImageInfo[currentImage]["Regions"][i].path==hitResult.item) {
-                        re=ImageInfo[currentImage]["Regions"][i];
-                        break;
-                    }
-                }
-
-                // select path
-                if(region && region!=re) {
-                    region.path.selected=false;
-                    prevRegion=region;
-                }
-                selectRegion(re);
-
-                // did hit a point?
-                if (hitResult.type == 'segment') {
-                    if (firstPoint == undefined){
-                        console.log('Got first Point');
-                        firstPoint = hitResult; 
-                    }
-                    else {
-                        // can snap the two points
-                        var secondPoint = hitResult;
-                        console.log('Got second point');
-                        newx = (firstPoint.segment.point.x + secondPoint.segment.point.x) / 2;
-                        newy = (firstPoint.segment.point.y + secondPoint.segment.point.y) / 2;
-                        firstPoint.segment.point = {'x': newx, 'y': newy};
-                        secondPoint.segment.point = {'x': newx, 'y':newy};
-                        firstPoint = undefined;
-                        commitMouseUndo();
-                    }
-                } 
-            }
-            break;
-        }
         case "draw": {
             // Start a new region
             // if there was an older region selected, unselect it
@@ -714,9 +665,7 @@ function mouseDown(x,y) {
                 region.path.selected = false;
             }
             // start a new region
-            var path = new paper.Path({segments:[point]})
-            path.strokeWidth = config.defaultStrokeWidth;
-            region = newRegion({path:path});
+            region = newRegion({path:new paper.Path({segments:[point]})});
             // signal that a new region has been created for drawing
             newRegionFlag = true;
 
@@ -725,19 +674,16 @@ function mouseDown(x,y) {
         }
         case "draw-polygon": {
             // is already drawing a polygon or not?
+            console.log(drawingPolygonFlag);
             if( drawingPolygonFlag == false ) {
                 // deselect previously selected region
                 if( region )
                     region.path.selected = false;
-              
-                // Start a new Region with alpha 0
-                var path = new paper.Path({segments:[point]})
-                path.strokeWidth = config.defaultStrokeWidth;
-                region = newRegion({path:path});
+                // Start a new Region with no fill color
+                region = newRegion({path:new paper.Path({segments:[point]})});
                 region.path.fillColor.alpha = 0;
                 region.path.selected = true;
                 drawingPolygonFlag = true;
-                commitMouseUndo();
             } else {
                 var hitResult = paper.project.hitTest(point, {tolerance:10, segments:true});
                 if( hitResult && hitResult.item == region.path && hitResult.segment.point == region.path.segments[0].point ) {
@@ -747,7 +693,6 @@ function mouseDown(x,y) {
                 } else {
                     // add point to region
                     region.path.add(point);
-                    commitMouseUndo();
                 }
             }
             break;
@@ -792,7 +737,7 @@ function mouseDrag(x,y,dx,dy) {
         }
     }
     if( selectedTool == "rotate" ) {
-        //event.stopHandlers = true;
+        event.stopHandlers = true;
         var degree = parseInt(dpoint.x);
         var i;
         for( i in ImageInfo[currentImage]["Regions"] ) {
@@ -848,26 +793,6 @@ function flipRegion(reg) {
         }
     paper.view.draw();
     }
-}
-
-function toggleHandles() {
-    console.log("> toggleHandles");
-    if (region != null) {
-        if (region.path.hasHandles()) {
-            if (confirm('Do you really want to remove the handles?')) {
-                var undoInfo = getUndo();
-                region.path.clearHandles();
-                saveUndo(undoInfo);
-            }
-        }
-        else {
-            var undoInfo = getUndo();
-            region.path.smooth();
-            saveUndo(undoInfo);
-        }
-        paper.view.draw();
-    }
-
 }
 
 /*** 
@@ -992,27 +917,14 @@ function onAlphaSlider(value) {
     $('#alphaFill').val(value);
     var reg = currentColorRegion;
     reg.path.fillColor.alpha = $('#alphaSlider').val() / 100;
-    paper.view.draw();
 }
 
 function onAlphaInput(value) {
     $('#alphaSlider').val(value);
     var reg = currentColorRegion;
     reg.path.fillColor.alpha = $('#alphaSlider').val() / 100;
-    paper.view.draw();
 }
 
-function onStrokeWidthDec() {
-    var reg = currentColorRegion;
-    reg.path.strokeWidth = Math.max(region.path.strokeWidth - 1, 1);
-    paper.view.draw();
-}
-
-function onStrokeWidthInc() {
-    var reg = currentColorRegion;
-    reg.path.strokeWidth = Math.min(region.path.strokeWidth + 1, 10);
-    paper.view.draw();
-}
 
 /*** UNDO ***/
 
@@ -1046,7 +958,7 @@ function cmdRedo() {
  * Return a complete copy of the current state as an undo object.
  */
 function getUndo() {
-    var undo = { imageNumber: currentImage, regions: [], drawingPolygonFlag: drawingPolygonFlag };
+    var undo = { imageNumber: currentImage, regions: [] };
     var info = ImageInfo[currentImage]["Regions"];
 
     for( var i = 0; i < info.length; i++ ) {
@@ -1099,9 +1011,8 @@ function applyUndo(undo) {
 		project.addChild(path);
 		path.importJSON(el.json);
 		reg = newRegion({name:el.name, path:path}, undo.imageNumber);
-                // here order matters. if fully selected is set after selected, partially selected paths will be incorrect
-		reg.path.fullySelected = el.fullySelected;
 		reg.path.selected = el.selected;
+		reg.path.fullySelected = el.fullySelected;
 		if( el.selected ) {
 			if( region === null )
 				region = reg;
@@ -1109,7 +1020,6 @@ function applyUndo(undo) {
 				console.log("Should not happen: two regions selected?");
 		}
     }
-    drawingPolygonFlag = undo.drawingPolygonFlag;
 }
 
 /**
@@ -1132,14 +1042,11 @@ function finishDrawingPolygon(closed){
         // finished the drawing of the polygon
         if( closed == true ) {
             region.path.closed = true;
-            region.path.fillColor.alpha = config.defaultFillAlpha;
-        } else {
-            region.path.fillColor.alpha = 0;
+            region.path.fillColor.alpha = 0.5;
         }
         region.path.fullySelected = true;
         //region.path.smooth();
         drawingPolygonFlag = false;
-        commitMouseUndo();
 }
 
 function backToPreviousTool(prevTool) {
@@ -1205,8 +1112,7 @@ function toolSelection(event) {
 
     //end drawing of polygons and make open form
     if( drawingPolygonFlag == true )
-        finishDrawingPolygon(false);
-    firstPoint=undefined;
+        finishDrawingPolygon(true);
 
     var prevTool = selectedTool;
     selectedTool = $(this).attr("id");
@@ -1218,7 +1124,6 @@ function toolSelection(event) {
         case "delpoint":
         case "addregion":
         case "delregion":
-        case "snappoint":
         case "draw":
         case "rotate":
         case "draw-polygon":
@@ -1239,10 +1144,6 @@ function toolSelection(event) {
         case "zoom-in":
         case "zoom-out":
         case "home":
-            backToPreviousTool(prevTool);
-            break;
-        case "load":
-            interactLoadFromUser();
             backToPreviousTool(prevTool);
             break;
         case "prev":
@@ -1281,10 +1182,6 @@ function toolSelection(event) {
             toggleMenu();
             backToPreviousTool(prevTool);
             break;
-        case "handle":
-            toggleHandles();
-            backToPreviousTool(prevTool);
-            break;
     }
 }
 
@@ -1311,12 +1208,8 @@ function microdrawDBSave() {
 
     // key
     var key = "regionPaths";
-    var savedSlices = "Saving slices: ";
 
     for( var sl in ImageInfo ) {
-        if ((config.multiImageSave == false) && (sl != currentImage)){
-            continue;
-        }
         // configure value to be saved
         var slice = ImageInfo[sl];
         var value = {};
@@ -1332,20 +1225,16 @@ function microdrawDBSave() {
         // check if the slice annotations have changed since loaded by computing a hash
         var h = hash(JSON.stringify(value.Regions)).toString(16);
         if( debug > 1 )
-            console.log("slice:",sl, "hash:",h,"original hash:",slice.Hash);
-        // if the slice hash is undefined, this slice has not yet been loaded. do not save anything for this slice
-        if( slice.Hash == undefined || h==slice.Hash ) {
+            console.log("hash:",h,"original hash:",slice.Hash);
+        if( slice.Hash !== undefined && h==slice.Hash ) {
             if( debug > 1 )
                 console.log("No change, no save");
             value.Hash = h;
             continue;
         }
         value.Hash = h;
-        savedSlices += sl.toString() + " ";
 
         // post data to database
-        (function(sl, h) {
-        console.log('saving slice ', sl);
         $.ajax({
             url:dbroot,
             type:"POST",
@@ -1361,70 +1250,37 @@ function microdrawDBSave() {
                 "value":JSON.stringify(value)
             },
             success: function(data) {
-                console.log("< microdrawDBSave resolve: Successfully saved regions:",ImageInfo[sl].Regions.length,"slice: " + sl.toString(),"response:",data);
-
-                //update hash
-                ImageInfo[sl].Hash = h;
+                console.log("< microdrawDBSave resolve: Successfully saved regions:",slice.Regions.length,"slice: " + sl.toString(),"response:",data);
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 console.log("< microdrawDBSave resolve: ERROR: " + textStatus + " " + errorThrown,"slice: "+sl.toString());
             }
         });
-        })(sl, h);
-        
-        //show dialog box with timeout
-        $('#saveDialog').html(savedSlices).fadeIn();    
-        setTimeout(function() { $("#saveDialog").fadeOut(500);},2000);
     }
-    
-    //show dialog box with timeout
-    $('#saveDialog').html(savedSlices).fadeIn();    
-    setTimeout(function() { $("#saveDialog").fadeOut(500);},2000);
-
 }
 
-function interactLoadFromUser() {
-    /*
-     *  *  Ask for a username and load annotations of this username
-     *   */
-
-        if (debug) console.log("> interactLoadFromUser promise");
-
-            var user = prompt("Please enter the username", "cytomapping");
-                if (user != null) {
-                            var origin = {};
-                            origin.appName = myOrigin.appName;
-                            origin.slice = myOrigin.slice;
-                            origin.source= myOrigin.source;
-                            origin.user = user;
-                            microdrawDBLoad(origin);
-                                                                }
-
-}
-
-function microdrawDBLoad(origin) {
+function microdrawDBLoad() {
 /*
     Load SVG overlay from microdrawDB
 */
-    if(debug) console.log("> microdrawDBLoad promise");
-    var ori = typeof origin != 'undefined' ? origin : myOrigin;
-    var	def=$.Deferred();
-    var	key="regionPaths";
-    var slice=ori.slice;
-    //console.log(JSON.stringify(ori));
+	if( debug ) console.log("> microdrawDBLoad promise");
+	
+	var	def = $.Deferred();
+	var	key = "regionPaths";
+	var slice = myOrigin.slice;
     $.get(dbroot,{
 		"action":"load_last",
-		"origin":JSON.stringify(ori),
+		"origin":JSON.stringify(myOrigin),
 		"key":key
-    }).success(function(data) {
-	var	i,obj,reg;
-	annotationLoadingFlag = false;
-        //console.log(data);
-       		
-	// if the slice that was just loaded does not correspond to the current slice,
-	// do not display this one and load the current slice.
-	if( slice != currentImage ) {
-            console.log('reloading annotations because slice changed');
+	}).success(function(data) {
+		var	i,obj,reg;
+		annotationLoadingFlag = false;
+        if( data.length == 0 )
+            return;
+		
+		// if the slice that was just loaded does not correspond to the current slice,
+		// do not display this one and load the current slice.
+		if( slice != currentImage ) {
             microdrawDBLoad()
             .then(function() {
                 $("#regionList").height($(window).height()-$("#regionList").offset().top);
@@ -1432,23 +1288,15 @@ function microdrawDBLoad(origin) {
                 paper.view.draw();
             });
             def.fail();
-	    return;
-	}
+		    return;
+		}
 	
-        // if there is no data on the current slice 
-        // save hash for the image none the less
-        if( data.length == 0 ) {
-            ImageInfo[currentImage]["Hash"] = hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16);
-            return;
-        }
-
-
-	// parse the data and add to the current canvas
-	// console.log("[",data,"]");
+		// parse the data and add to the current canvas
+		// console.log("[",data,"]");
         obj = JSON.parse(data);
-	if( obj ) {
-	    obj = JSON.parse(obj.myValue);
-	    for( i = 0; i < obj.Regions.length; i++ ) {
+		if( obj ) {
+			obj = JSON.parse(obj.myValue);
+			for( i = 0; i < obj.Regions.length; i++ ) {
 				var reg = {};
 				var	json;
 				reg.name = obj.Regions[i].name;
@@ -1457,17 +1305,17 @@ function microdrawDBLoad(origin) {
 				reg.path = new paper.Path();
 				reg.path.importJSON(json);
 				newRegion({name:reg.name,path:reg.path});
-	    }
-	    paper.view.draw();
+			}
+			paper.view.draw();
             // if image has no hash, save one
-	    ImageInfo[currentImage]["Hash"] = (obj.Hash ? obj.Hash : hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16));
-            //console.log('Hash' + ImageInfo[currentImage]["Hash"]);
-	}
-	if( debug ) console.log("< microdrawDBLoad resolve success. Number of regions:", ImageInfo[currentImage]['Regions'].length);
-	    def.resolve();
-    }).error(function(jqXHR, textStatus, errorThrown) {
+			ImageInfo[currentImage]["Hash"] = (obj.Hash ? obj.Hash : hash(JSON.stringify(ImageInfo[currentImage]["Regions"])).toString(16));
+    
+		}
+		if( debug ) console.log("< microdrawDBLoad resolve success. Number of regions:", ImageInfo[currentImage]['Regions'].length);
+		def.resolve();
+	}).error(function(jqXHR, textStatus, errorThrown) {
         console.log("< microdrawDBLoad resolve ERROR: " + textStatus + " " + errorThrown);
-	annotationLoadingFlag = false;
+		annotationLoadingFlag = false;
     });
     return def.promise();
 }
@@ -1541,17 +1389,6 @@ function loadImage(name) {
     if( debug ) console.log("> loadImage(" + name + ")");
     // save previous image for some (later) cleanup
     prevImage = currentImage;
-    // unload the mask 
-    if( maskTiles != undefined ){
-        viewer.world.removeItem(maskTiles);
-        maskTiles = undefined;
-    }
-    // unload the predictions
-    if (predictionTiles != undefined) {
-        viewer.world.removeItem(predictionTiles);
-        predictionTiles = undefined;
-    }
-
 
     // set current image to new image
     currentImage = name;
@@ -1583,7 +1420,7 @@ function loadPreviousImage() {
 
 
 function resizeAnnotationOverlay() {
-    if( debug ) console.log("> resizeAnnotationOverlay");
+    //if( debug ) console.log("> resizeAnnotationOverlay");
 
     var width = $("body").width();
     var height = $("body").height();
@@ -1593,14 +1430,14 @@ function resizeAnnotationOverlay() {
 }
 
 function initAnnotationOverlay(data) {
-    if( debug ) console.log("> initAnnotationOverlay");
+    //if( debug ) console.log("> initAnnotationOverlay");
     
     // do not start loading a new annotation if a previous one is still being loaded
     if(annotationLoadingFlag==true) {
         return;
     }
     
-    //console.log("new overlay size" + viewer.world.getItemAt(0).getContentSize());
+    console.log("new overlay size" + viewer.world.getItemAt(0).getContentSize());
 
     /*
        Activate the paper.js project corresponding to this slice. If it does not yet
@@ -1657,7 +1494,7 @@ function initAnnotationOverlay(data) {
 
     /* RT: commenting this line out solves the image size issues */
        // set size of the current overlay to match the size of the current image
-       magicV = viewer.world.getItemAt(0).getContentSize().x;
+       magicV = viewer.world.getItemAt(0).getContentSize().x / 100;
 
     transform();
 }
@@ -1674,6 +1511,9 @@ function transform() {
     var h = magicV * bounds.height;
     paper.view.setCenter(x + w / 2, y + h / 2);
     paper.view.zoom=(sw * z) / magicV;
+
+	if(socket && IAmASlave==false)
+		socket.send(JSON.stringify({type:"setBounds",bounds:bounds}));
 }
 
 function deparam() {
@@ -1769,7 +1609,6 @@ function updateSliceName() {
     $("title").text("MicroDraw|" + filename + "|" + currentImage);
 }
 
-
 function initShortCutHandler() {
     $(document).keydown(function(e) {
         var key = [];
@@ -1818,13 +1657,9 @@ function initSlider(min_val, max_val, step, default_value) {
             slider_onchange(this.value);
         });
 
-        // Input event can only be used when not using database, otherwise the annotations will be loaded several times
-        // TODO fix the issue with the annotations for real
-        if (config.useDatabase == false) {
-            slider.on("input", function() {
-                slider_onchange(this.value);
-            });
-        }
+        slider.on("input", function() {
+            slider_onchange(this.value);
+        });
     }
 }
 
@@ -1882,103 +1717,6 @@ function slice_name_onenter(event) {
     }
     event.preventDefault(); // prevent the default action (scroll / move caret)
 }
-
-/*
- * Mask and prediction overlays
- */
-function initOverlay(event) {
-    if (debug) console.log("> initOverlay promise");
-    if (ImageInfo[currentImage]["maskSource"] != undefined) {
-        $("#alpha-mask").attr('disabled', false);
-        if (maskTiles != undefined) {
-            console.log('already has maskTiles...')
-            viewer.world.removeItem(maskTiles);
-         }
-        var func = function(data) {
-            if (debug) console.log("added overlay to world");
-            maskTiles = data.item;
-            viewer.world.removeHandler('add-item', func);
-        };
-        viewer.world.addHandler('add-item', func);
-        viewer.addTiledImage({tileSource: ImageInfo[currentImage]["maskSource"], opacity:0});
-
-        $("#alpha-mask").val(0);
-    }
-    else {
-        $("#alpha-mask").val(0);
-        $("#alpha-mask").attr('disabled', true);
-        console.log($("#alpha-mask"));
-    }
-
-}
-
-function onChangeOverlaySlider(value) {
-    if (debug) console.log("> onChangeOverlaySlider promise");
-    if (maskTiles != undefined) {
-        maskTiles.setOpacity(value);
-    }
-}
-
-function initOverlaySlider(min_val, max_val, step, default_value) {
-/*
-    Initializes a slider to change the alpha value of the overlay
-*/
-    if( debug ) console.log("> initOverlaySlider promise");
-    var slider = $("#alpha-mask");
-    if( slider.length > 0 ) { // only if slider could be found
-        slider.attr("min", min_val);
-        slider.attr("max", max_val);
-        slider.attr("step", step);
-        slider.val(default_value);
-
-        slider.on("change", function() {
-            onChangeOverlaySlider(this.value);
-        });
-
-
-        slider.on("input", function() {
-            onChangeOverlaySlider(this.value);
-        });
-    }
- }
-
-function fillPredictionSelect() {
-    if (debug) console.log('> fillPredictionSelect');
-    // delete all entries from predictions select
-    $("#predictions").empty();
-
-    // fill predictions select with values
-    var sel = $("#predictions"); //document.getElementById('predictions');
-    sel.append("<option value='none'>No Predictions</option>");
-    for (var i = 0; i < ImageInfo[currentImage]["predictionSources"].length; i++) {
-        var source = ImageInfo[currentImage]["predictionSources"][i];
-        var opt = "<option id='" + i + "' value='" + source + "'>" + source + "</option>";
-        sel.append(opt);
-    }
-
-}
-
-function addOpaquePredictionTiles(event) {
-        if (debug) console.log("> addOpaquePredictionTiles promise");
-        var name = $("#predictions").val();
-        if (predictionTiles != undefined) {
-            // remove old tiles 
-            viewer.world.removeItem(predictionTiles);
-            predictionTiles = undefined;
-        }
-        if (name != "none") {
-            // add new tiles
-            var func = function(data) {
-                if (debug) console.log("added Tiled Image to world");
-                predictionTiles = data.item;
-                viewer.world.removeHandler('add-item', func);
-            };
-            viewer.world.addHandler('add-item', func);
-            viewer.addTiledImage({tileSource: name, opacity:0.5});
-        }
-
-}
-
 
 function loadConfiguration() {
     var def = $.Deferred();
@@ -2106,10 +1844,6 @@ function initMicrodraw() {
         resizeAnnotationOverlay();
     });
 
-    // add event that triggers the addition of prediction tiles when the dropdown in change
-    $("#predictions").on('change', addOpaquePredictionTiles);
-
-
     appendRegionTagsFromOntology(Ontology);
 
     return def.promise();
@@ -2129,51 +1863,15 @@ function initMicrodraw2(obj) {
 		// name is either the index of the tileSource or a named specified in the json file
 		var name = ((obj.names && obj.names[i]) ? String(obj.names[i]) : String(i));
 		imageOrder.push(name);
-		ImageInfo[name] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined, "predictionSources":[], "maskSource":undefined};
+		ImageInfo[name] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined};
 		// if getTileUrl is specified, we might need to eval it to get the function
 		if( obj.tileSources[i].getTileUrl && typeof obj.tileSources[i].getTileUrl === 'string' ) {
 			eval("ImageInfo[name]['source'].getTileUrl = " + obj.tileSources[i].getTileUrl);
 		}
 	}
-        // find all masks and associate them with their tileSource
-        for (var key in obj.maskSources) {
-            if (key in ImageInfo) {
-                ImageInfo[key]["maskSource"] = obj.maskSources[key];
-                if (obj.maskSources[key].getTileUrl && typeof obj.maskSources[key].getTileUrl == 'string') {
-                    eval("ImageInfo[key]['maskSource'].getTileUrl = " + obj.maskSources[key].getTileUrl);
-                }
-            }
-        }
-        for (var key in obj.predictionSources) {
-            if (key in ImageInfo) {
-                for (var i = 0; i < obj.predictionSources[key].length; i++) {
-                    ImageInfo[key]["predictionSources"].push(obj.predictionSources[key][i]);
-                    if (obj.predictionSources[key][i].getTileUrl && typeof obj.predictionSources[key][i].getTileUrl == 'string') {
-                        eval("ImageInfo[key]['predictionSources'][i].getTileUrl = " + obj.predictionSources[key][i].getTileUrl);
-                    }
-                }
-            }
-        }
-        
-        console.log(ImageInfo);
-    
-    // set default values for new regions (general configuration)
-    if (config.defaultStrokeColor == undefined) config.defaultStrokeColor = 'black';
-    if (config.defaultStrokeWidth == undefined) config.defaultStrokeWidth = 1;
-    if (config.defaultFillAlpha == undefined) config.defaultFillAlpha = 0.5;
-    // set default values for new regions (per-brain configuration)
-    if (obj.configuration) {
-        if (obj.configuration.defaultStrokeColor != undefined) config.defaultStrokeColor = obj.configuration.defaultStrokeColor;
-        if (obj.configuration.defaultStrokeWidth != undefined) config.defaultStrokeWidth = obj.configuration.defaultStrokeWidth;
-        if (obj.configuration.defaultFillAlpha != undefined) config.defaultFillAlpha = obj.configuration.defaultFillAlpha;
-    }
 	
 	// init slider that can be used to change between slides
 	initSlider(0, obj.tileSources.length, 1, Math.round(obj.tileSources.length / 2));
-    
-    // init overlay slider for the opacity
-    initOverlaySlider(0, 1, 0.1, 0);
-    
 	currentImage = imageOrder[Math.floor(obj.tileSources.length / 2)];
 
 	params.tileSources = obj.tileSources;
@@ -2190,7 +1888,16 @@ function initMicrodraw2(obj) {
 		zoomOutButton:"zoom-out",
 		homeButton:"home",
 		preserveViewport: true,
-                zoomPerScroll: 2.0
+		animationTime:0,
+		gestureSettingsMouse:{
+			scrollToZoom: true,
+			clickToZoom: false, 
+			dblClickToZoom: false,
+			pinchToZoom: false,
+			flickEnabled: true,
+			flickMinSpeed:1,
+			flickMomentum:1
+		}
 	});
 
 	// open the currentImage
@@ -2215,11 +1922,7 @@ function initMicrodraw2(obj) {
 		initAnnotationOverlay();
 		updateSliceName();
 	});
-    
-    viewer.addHandler('open', fillPredictionSelect);
-    viewer.addHandler('open', initOverlay);
-
-	viewer.addHandler('animation', function(event){
+	viewer.addHandler('animation-finish', function(event){
 		transform();
 	});
 	viewer.addHandler("page", function (data) {
@@ -2231,8 +1934,7 @@ function initMicrodraw2(obj) {
 		{tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
 		{tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
 	]});
-        
-      
+
 	if( debug ) console.log("< initMicrodraw2 resolve: success");
 }
 
@@ -2269,6 +1971,49 @@ $(function() {
     });
 });
 
+function createSocket(host) {
+	var ws;
+	if (window.WebSocket) {
+		ws=new WebSocket(host);
+	} else if (window.MozWebSocket) {
+		ws=new MozWebSocket(host);
+	}
+	return ws;
+};
+function initSocketConnection() {
+	// WS connection
+	var host = "ws://" + window.location.host + ":8080/";
+
+	try {
+		socket = createSocket(host);
+		
+		socket.onopen = function(msg) {
+			console.log("ws  open");
+		};
+		
+		socket.onmessage = function(msg) {
+			// Message: interaction message
+			var	data=JSON.parse(msg.data);
+			switch(data.type) {
+				case "setBounds": {
+					IAmASlave=true;
+					var b=data.bounds;
+					var rect=new OpenSeadragon.Rect(b.x+b.width,b.y,b.width,b.height);
+					viewer.viewport.fitBounds(rect);
+					break;
+				}
+			}
+		};
+		
+		me.socket.onclose = function(msg) {
+			console.log("ws close");
+		};
+	}
+	catch (ex) {
+		console.log("ERROR: unable to connect");
+	}
+}
+initSocketConnection();
 
 /*
     // Log microdraw
