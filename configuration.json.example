@@ -1,0 +1,11 @@
+{
+    "useDatabase":true,
+    "hideToolbar":false,
+    "regionOntology":false,
+    "drawingEnabled":true,
+    "removeTools":["predictions","handle","snappoint", "load"],
+    "multiImageSave":false,
+    "defaultStrokeWidth":1,
+    "defaultStrokeColor":"black",
+    "defaultFillAlpha":0.5
+}

@@ -1,8 +1,0 @@
-{
-    "useDatabase":true,
-    "hideToolbar":false,
-    "regionOntology":false,
-    "drawingEnabled":true,
-    "removeTools":["predictions"],
-    "multiImageSave":false
-}

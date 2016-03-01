@@ -1988,7 +1988,7 @@ function loadConfiguration() {
         
         drawingTools = ["select", "draw", "draw-polygon", "simplify", "addpoint",
                         "delpoint", "addregion", "delregion", "splitregion", "rotate",
-                        "save", "copy", "paste", "delete"];
+                        "flip", "snappoint", "handle", "save", "copy", "paste", "delete"];
         if( config.drawingEnabled == false ) {
             // remove drawing tools from ui
             for( var i = 0; i < drawingTools.length; i++ ){
