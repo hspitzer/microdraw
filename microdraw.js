@@ -1952,21 +1952,23 @@ function fillPredictionSelect() {
     sel.append("<option value='none'>No Predictions</option>");
     for (var i = 0; i < ImageInfo[currentImage]["predictionSources"].length; i++) {
         var source = ImageInfo[currentImage]["predictionSources"][i];
-        var opt = "<option id='" + i + "' value='" + source + "'>" + source + "</option>";
+        var opt = "<option id='" + i + "' value='" + i + "'>" + i + " (" + source + ")</option>";
         sel.append(opt);
     }
 
 }
 
 function addOpaquePredictionTiles(event) {
+    console.log(event);
         if (debug) console.log("> addOpaquePredictionTiles promise");
-        var name = $("#predictions").val();
+        var idx = $("#predictions").val();
         if (predictionTiles != undefined) {
             // remove old tiles 
             viewer.world.removeItem(predictionTiles);
             predictionTiles = undefined;
         }
-        if (name != "none") {
+        if (idx != "none") {
+            var tileSource = ImageInfo[currentImage]["predictionSources"][idx];
             // add new tiles
             var func = function(data) {
                 if (debug) console.log("added Tiled Image to world");
@@ -1974,7 +1976,7 @@ function addOpaquePredictionTiles(event) {
                 viewer.world.removeHandler('add-item', func);
             };
             viewer.world.addHandler('add-item', func);
-            viewer.addTiledImage({tileSource: name, opacity:0.5});
+            viewer.addTiledImage({tileSource: tileSource, opacity:0.5});
         }
 
 }
@@ -2041,9 +2043,9 @@ function initMicrodraw() {
     selectTool();
 
 	// decide between json (local) and jsonp (cross-origin)
-        console.log(params.source);
 	var ext = params.source.split(".");
 	ext = ext[ext.length - 1];
+        console.log(params.source);
 	if( ext == "jsonp" ) {
 		if( debug )
 			console.log("Reading cross-origin jsonp file");
