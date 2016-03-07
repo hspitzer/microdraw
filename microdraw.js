@@ -2041,6 +2041,7 @@ function initMicrodraw() {
     selectTool();
 
 	// decide between json (local) and jsonp (cross-origin)
+        console.log(params.source);
 	var ext = params.source.split(".");
 	ext = ext[ext.length - 1];
 	if( ext == "jsonp" ) {
@@ -2062,10 +2063,25 @@ function initMicrodraw() {
 			type: 'GET',
 			url: params.source,
 			dataType: "json",
-            contentType: "application/json",
+                        contentType: "application/json",
 			success: function(obj){initMicrodraw2(obj);def.resolve()}
 		});
 	}
+        else 
+        if (params.source.substring(0,4) == 'http'){
+            // assume this is a http get where we can get the data
+            if (debug) console.log("Reading json from server");
+            $.ajax({
+                type: 'GET',
+                url: params.source,
+        	dataType: "jsonp",
+                jsonpCallback: 'f',
+                contentType: "application/json",
+		success: function(obj){initMicrodraw2(obj);def.resolve();},
+                error: function(obj) {console.log(obj.statusText);}
+
+            });
+        }
 
     // Change current slice by typing in the slice number and pessing the enter key
     $("#slice-name").keyup(slice_name_onenter);
