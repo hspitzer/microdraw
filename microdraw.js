@@ -519,6 +519,31 @@ function handleRegionTap(event) {
     if( debug ) console.log("< handleRegionTap");
 }
 
+function getHitResult(point) {
+    // First check if have a hit among the selected regions
+    var hitResult = paper.project.hitTest(point, {
+            tolerance: 10,
+            stroke: true,
+            segments: true,
+            fill: true,
+            handles: true,
+            selected: true
+        });
+    if ( hitResult )
+        return hitResult;
+    // Then try to find any hit
+    else {
+        var hitResult = paper.project.hitTest(point, {
+                tolerance: 10,
+                stroke: true,
+                segments: true,
+                fill: true,
+                handles: true,
+            });
+        return hitResult;
+    }
+}
+
 function mouseDown(x,y) {
     if( debug > 1 ) console.log("> mouseDown");
 
@@ -535,14 +560,7 @@ function mouseDown(x,y) {
         case "addregion":
         case "delregion":
         case "splitregion": {
-            var hitResult = paper.project.hitTest(point, {
-                    tolerance: 10,
-                    stroke: true,
-                    segments: true,
-                    fill: true,
-                    handles: true
-                });
-
+            var hitResult = getHitResult(point);
             newRegionFlag = false;
             if( hitResult ) {
                 var i;
@@ -660,14 +678,7 @@ function mouseDown(x,y) {
             break;
         }
         case "snappoint": {
-            
-            var hitResult=paper.project.hitTest(point, {
-                             tolerance:10,
-                             stroke: true,
-                             segments:true,
-                             fill: true,
-                             handles:true
-            });
+            var hitResult = getHitResult(point);
             newRegionFlag=false; 
 
             if (hitResult) {
