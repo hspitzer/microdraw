@@ -1959,11 +1959,10 @@ function fillOverlaySelect() {
     }
 }
 
-function addOverlayTiles(event) {
+function addOverlay(event) {
     console.log(event);
-    if (debug) console.log("> addOverlayTiles promise");
+    if (debug) console.log("> addOverlay promise");
     var overlay_name = $("#overlays").val();
-    console.log(overlay_name);
     if (overlayTiles != undefined) {
         // remove old tiles 
         viewer.world.removeItem(overlayTiles);
@@ -1973,10 +1972,9 @@ function addOverlayTiles(event) {
         var tileSource = ImageInfo[currentImage]["overlays"][overlay_name];
         var alpha = $("#alpha-overlay").val();
         $("#alpha-overlay").attr('disabled', false);
-        console.log('alpha' + alpha);
         // add new tiles
         var func = function(data) {
-            if (debug) console.log("added Tiled Image to world");
+            if (debug) console.log("> addOverlay sucess");
             overlayTiles = data.item;
             viewer.world.removeHandler('add-item', func);
         };
@@ -2134,7 +2132,7 @@ function initMicrodraw() {
     });
 
     // add event that triggers the addition of overlay tiles when the dropdown in change
-    $("#overlays").on('change', addOverlayTiles);
+    $("#overlays").on('change', addOverlay);
 
 
     appendRegionTagsFromOntology(Ontology);
@@ -2258,7 +2256,7 @@ function initMicrodraw2(obj) {
 	});
     
     viewer.addHandler('open', fillOverlaySelect);
-    viewer.addHandler('open', initOverlay);
+    viewer.addHandler('open', addOverlay);
 
 	viewer.addHandler('animation', function(event){
 		transform();
