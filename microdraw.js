@@ -29,10 +29,10 @@ var config={}                  // App configuration object
 var isMac = navigator.platform.match(/Mac/i)?true:false;
 var isIOS = navigator.platform.match(/(iPhone|iPod|iPad)/i)?true:false;
 
-// predictions and masks
-var predictionTiles = undefined;
-var maskTiles = undefined;
-/***1
+// overlays
+var overlayTiles = undefined;
+
+/**1
     Region handling functions
 */
 function newRegion(arg, imageNumber) {
@@ -1552,17 +1552,12 @@ function loadImage(name) {
     if( debug ) console.log("> loadImage(" + name + ")");
     // save previous image for some (later) cleanup
     prevImage = currentImage;
-    // unload the mask 
-    if( maskTiles != undefined ){
-        viewer.world.removeItem(maskTiles);
-        maskTiles = undefined;
-    }
-    // unload the predictions
-    if (predictionTiles != undefined) {
-        viewer.world.removeItem(predictionTiles);
-        predictionTiles = undefined;
-    }
 
+    // unload the overlay
+    if (overlayTiles != undefined ){
+        viewer.world.removeItem(overlayTiles);
+        overlayTiles = undefined;
+    }
 
     // set current image to new image
     currentImage = name;
@@ -1895,38 +1890,31 @@ function slice_name_onenter(event) {
 }
 
 /*
- * Mask and prediction overlays
+ * Overlays
  */
-function initOverlay(event) {
-    if (debug) console.log("> initOverlay promise");
-    if (ImageInfo[currentImage]["maskSource"] != undefined) {
-        $("#alpha-mask").attr('disabled', false);
-        if (maskTiles != undefined) {
-            console.log('already has maskTiles...')
-            viewer.world.removeItem(maskTiles);
-         }
-        var func = function(data) {
-            if (debug) console.log("added overlay to world");
-            maskTiles = data.item;
-            viewer.world.removeHandler('add-item', func);
-        };
-        viewer.world.addHandler('add-item', func);
-        viewer.addTiledImage({tileSource: ImageInfo[currentImage]["maskSource"], opacity:0});
 
-        $("#alpha-mask").val(0);
+// TODO this function hight not be needed anymore?
+function initOverlay(event) {
+    // create the current (default overlay)
+    if (debug) console.log("> initOverlay promise");
+
+    /*8if (Object.keys(ImageInfo[currentImage]["overlays"]).length == 0) {
+        $("#alpha-overlay").val(0);
+        $("#alpha-overlay").attr('disabled', true);
+
     }
-    else {
-        $("#alpha-mask").val(0);
-        $("#alpha-mask").attr('disabled', true);
-        console.log($("#alpha-mask"));
+    else {      
+        addOverlayTiles();
     }
+*/
+    addOverlayTiles();
 
 }
 
 function onChangeOverlaySlider(value) {
     if (debug) console.log("> onChangeOverlaySlider promise");
-    if (maskTiles != undefined) {
-        maskTiles.setOpacity(value);
+    if (overlayTiles != undefined) {
+        overlayTiles.setOpacity(value);
     }
 }
 
@@ -1935,7 +1923,7 @@ function initOverlaySlider(min_val, max_val, step, default_value) {
     Initializes a slider to change the alpha value of the overlay
 */
     if( debug ) console.log("> initOverlaySlider promise");
-    var slider = $("#alpha-mask");
+    var slider = $("#alpha-overlay");
     if( slider.length > 0 ) { // only if slider could be found
         slider.attr("min", min_val);
         slider.attr("max", max_val);
@@ -1946,49 +1934,59 @@ function initOverlaySlider(min_val, max_val, step, default_value) {
             onChangeOverlaySlider(this.value);
         });
 
-
         slider.on("input", function() {
             onChangeOverlaySlider(this.value);
         });
     }
  }
 
-function fillPredictionSelect() {
-    if (debug) console.log('> fillPredictionSelect');
-    // delete all entries from predictions select
-    $("#predictions").empty();
+function fillOverlaySelect() {
+    if (debug) console.log('> fillOverlaySelect');
+    // delete all entries from overlay select
+    $("#overlays").empty();
 
-    // fill predictions select with values
-    var sel = $("#predictions"); //document.getElementById('predictions');
-    sel.append("<option value='none'>No Predictions</option>");
-    for (var i = 0; i < ImageInfo[currentImage]["predictionSources"].length; i++) {
-        var source = ImageInfo[currentImage]["predictionSources"][i];
-        var opt = "<option id='" + i + "' value='" + i + "'>" + i + " (" + source + ")</option>";
+    // fill overlay select with values
+    var sel = $("#overlays");
+    sel.append("<option value='none'>No Overlay</option>");
+    for (var overlay_name in ImageInfo[currentImage]["overlays"]) {
+        var source = ImageInfo[currentImage]["overlays"][overlay_name];
+        if (overlay_name == "mask") {
+            var opt = "<option id='" + overlay_name + "' value='" + overlay_name + "' selected >" + overlay_name + "</option>";
+        } else {
+            var opt = "<option id='" + overlay_name + "' value='" + overlay_name + "'>" + overlay_name + "</option>";
+        }
         sel.append(opt);
     }
-
 }
 
-function addOpaquePredictionTiles(event) {
+function addOverlayTiles(event) {
     console.log(event);
-        if (debug) console.log("> addOpaquePredictionTiles promise");
-        var idx = $("#predictions").val();
-        if (predictionTiles != undefined) {
-            // remove old tiles 
-            viewer.world.removeItem(predictionTiles);
-            predictionTiles = undefined;
-        }
-        if (idx != "none") {
-            var tileSource = ImageInfo[currentImage]["predictionSources"][idx];
-            // add new tiles
-            var func = function(data) {
-                if (debug) console.log("added Tiled Image to world");
-                predictionTiles = data.item;
-                viewer.world.removeHandler('add-item', func);
-            };
-            viewer.world.addHandler('add-item', func);
-            viewer.addTiledImage({tileSource: tileSource, opacity:0.5});
-        }
+    if (debug) console.log("> addOverlayTiles promise");
+    var overlay_name = $("#overlays").val();
+    console.log(overlay_name);
+    if (overlayTiles != undefined) {
+        // remove old tiles 
+        viewer.world.removeItem(overlayTiles);
+        overlayTiles = undefined;
+    }
+    if (overlay_name != "none") {
+        var tileSource = ImageInfo[currentImage]["overlays"][overlay_name];
+        var alpha = $("#alpha-overlay").val();
+        $("#alpha-overlay").attr('disabled', false);
+        console.log('alpha' + alpha);
+        // add new tiles
+        var func = function(data) {
+            if (debug) console.log("added Tiled Image to world");
+            overlayTiles = data.item;
+            viewer.world.removeHandler('add-item', func);
+        };
+        viewer.world.addHandler('add-item', func);
+        viewer.addTiledImage({tileSource: tileSource, opacity:alpha});
+    } else {
+        $("#alpha-overlay").val(0);
+        $("#alpha-overlay").attr('disabled', true);
+        console.log($("#alpha-overlay"));
+    }
 
 }
 
@@ -2135,8 +2133,8 @@ function initMicrodraw() {
         resizeAnnotationOverlay();
     });
 
-    // add event that triggers the addition of prediction tiles when the dropdown in change
-    $("#predictions").on('change', addOpaquePredictionTiles);
+    // add event that triggers the addition of overlay tiles when the dropdown in change
+    $("#overlays").on('change', addOverlayTiles);
 
 
     appendRegionTagsFromOntology(Ontology);
@@ -2158,32 +2156,46 @@ function initMicrodraw2(obj) {
 		// name is either the index of the tileSource or a named specified in the json file
 		var name = ((obj.names && obj.names[i]) ? String(obj.names[i]) : String(i));
 		imageOrder.push(name);
-		ImageInfo[name] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined, "predictionSources":[], "maskSource":undefined};
+		ImageInfo[name] = {"source": obj.tileSources[i], "Regions": [], "projectID": undefined, "overlays":{}};
 		// if getTileUrl is specified, we might need to eval it to get the function
 		if( obj.tileSources[i].getTileUrl && typeof obj.tileSources[i].getTileUrl === 'string' ) {
 			eval("ImageInfo[name]['source'].getTileUrl = " + obj.tileSources[i].getTileUrl);
 		}
 	}
+
+        // for compatibility with old json file formats!
         // find all masks and associate them with their tileSource
         for (var key in obj.maskSources) {
             if (key in ImageInfo) {
-                ImageInfo[key]["maskSource"] = obj.maskSources[key];
+                ImageInfo[key]["overlays"]["mask"] = obj.maskSources[key];
                 if (obj.maskSources[key].getTileUrl && typeof obj.maskSources[key].getTileUrl == 'string') {
-                    eval("ImageInfo[key]['maskSource'].getTileUrl = " + obj.maskSources[key].getTileUrl);
+                    eval("ImageInfo[key]['overlays']['mask'].getTileUrl = " + obj.maskSources[key].getTileUrl);
                 }
             }
         }
         for (var key in obj.predictionSources) {
             if (key in ImageInfo) {
                 for (var i = 0; i < obj.predictionSources[key].length; i++) {
-                    ImageInfo[key]["predictionSources"].push(obj.predictionSources[key][i]);
+                    ImageInfo[key]["overlays"]["prediction"+i] = obj.predictionSources[key][i];
                     if (obj.predictionSources[key][i].getTileUrl && typeof obj.predictionSources[key][i].getTileUrl == 'string') {
-                        eval("ImageInfo[key]['predictionSources'][i].getTileUrl = " + obj.predictionSources[key][i].getTileUrl);
+                        eval("ImageInfo[key]['overlays']['prediction'+i].getTileUrl = " + obj.predictionSources[key][i].getTileUrl);
                     }
                 }
             }
         }
         
+        // find overlays and associate them with their tile source 
+        for (var key in obj.overlays) {
+            if (key in ImageInfo) {
+                for (overlay_name in obj.overlays[key]) {
+                    ImageInfo[key]["overlays"][overlay_name] = obj.overlays[key][overlay_name];
+                    if (obj.overlays[key][overlay_name].getTileUrl && typeof obj.overlays[key][overlay_name].getTileUrl == 'string') {
+                        eval("ImageInfo[key]['overlays'][overlay_name].getTileUrl = " + obj.overlays[key][overlay_name].getTileUrl);
+                    }
+
+                }
+            }
+        }
         console.log(ImageInfo);
     
     // set default values for new regions (general configuration)
@@ -2245,7 +2257,7 @@ function initMicrodraw2(obj) {
 		updateSliceName();
 	});
     
-    viewer.addHandler('open', fillPredictionSelect);
+    viewer.addHandler('open', fillOverlaySelect);
     viewer.addHandler('open', initOverlay);
 
 	viewer.addHandler('animation', function(event){
